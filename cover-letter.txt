@@ -1,0 +1,50 @@
+Subject: [PATCH v4 0/9] xen: Add NUMA-aware memory claims for domains
+
+This series introduces NUMA-aware memory claims. Xen allocates the claimed
+memory only for allocations from domains with a claim for this memory.
+
+The new hypercall API is designed to support staking claims on multiple NUMA
+nodes for a domain. It provides a foundation that can be extended to support
+multi-node claims without changing the hypercall API.
+
+Patch Structure:
+
+ 1. xen/page_alloc:  Extract claim consumption on allocation into static inline
+ 2. xen/page_alloc:  Add per-node free page counts; make counters unsigned long
+ 3. xen/page_alloc:  Add the implementation of NUMA-node-specific claims
+ 4. xen/page_alloc:  Consolidate per-node counters into avail[node][zone+x]
+ 5. xen/domain:      Add the XEN_DOMCTL_claim_memory hypercall handler
+ 6. xsm/flask:       Add a Flask security policy for the new hypercall
+ 7. libs/ctrl/xc:    Add the libxenctrl API xc_domain_claim_memory()
+ 8. ocaml/libx/xc:   Add the OCaml binding for xc_domain_claim_memory()
+ 9. tools/tests:     Add testing per-node claims and claims protection
+10. doc/guest-guide: Add comprehensive API documentation
+
+The updated guest-guide is deployed here for reviewing the created output:
+https://bernhardk-xen-review.readthedocs.io/v4.22-claims.v4/guest-guide/
+
+Changes in v4:
+
+- The logic for adjusting claimed pages on allocation has been completely
+  reworked to align with recent upstream changes. (Roger Pau Monné)
+
+- The check for node memory availability has been replaced with a corrected
+  implementation. (Marcus Granado, Roger Pau Monné, Bernhard Kaindl)
+
+- The new hypercall API patch has been refactored and split into separate
+  patches for the DOMCTL, Flask policy, and libxenctrl implementation.
+
+- Added initial tests and Sphinx documentation for the new API.
+
+- With improvements and rebasing on upstream changes, this series has changed
+  very much. Reviewing it as a whole is recommended over an incremental review.
+
+Credits:
+
+- Alejandro Vallejo developed the initial version
+- Roger Pau Monné updated the implementation and upstreamed key improvements
+- Marcus Granado contributed analysis and suggestions during development
+- Bernhard Kaindl developed the new domctl API, extended tests and documentation
+  and developed the refactored handler for consuming claims on allocation.
+
+Comments and feedback welcome.
