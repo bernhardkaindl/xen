@@ -98,6 +98,7 @@ define(`create_domain_common', `
 		vuart_op
 		set_llc_colors
 		get_domain_state
+		claim_memory
 	};
 	allow $1 $2:security check_context;
 	allow $1 $2:shadow enable;
