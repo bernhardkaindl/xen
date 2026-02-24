@@ -103,6 +103,7 @@ allow dom0_t dom0_t:domain2 {
 	get_cpu_policy
 	dt_overlay
 	get_domain_state
+	claim_memory
 };
 allow dom0_t dom0_t:resource {
 	add
