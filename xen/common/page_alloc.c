@@ -520,6 +520,35 @@ static unsigned long total_avail_pages;
 static DEFINE_SPINLOCK(heap_lock);
 
 /*
+ * Per-node lock abstraction for node-local heap operations.
+ *
+ * Currently wraps the global heap_lock; will be switched to
+ * node_heaps[node].lock to enable per-node locking granularity.
+ *
+ * Node-local paths (alloc, free, scrub) use these helpers.
+ * Global/claims paths keep using heap_lock directly.
+ */
+static always_inline void node_lock(nodeid_t node)
+{
+    spin_lock(&heap_lock);
+}
+
+static always_inline void node_unlock(nodeid_t node)
+{
+    spin_unlock(&heap_lock);
+}
+
+static always_inline void node_lock_cb(nodeid_t node,
+                                       void (*cb)(void *), void *data)
+{
+    spin_lock_cb(&heap_lock, cb, data);
+}
+
+static always_inline bool node_lock_is_locked(nodeid_t node)
+{
+    return spin_is_locked(&heap_lock);
+}
+/*
  * Per-node count of available pages, protected by heap_lock, updated in
  * lockstep with total_avail_pages as pages are allocated and freed.
  *
@@ -585,7 +614,7 @@ static inline bool node_allocatable_request(const struct domain *d,
 {
     unsigned long allocatable_pages;
 
-    ASSERT(spin_is_locked(&heap_lock));
+    ASSERT(spin_is_locked(&heap_lock) || node_lock_is_locked(node));
     ASSERT(node < MAX_NUMNODES);
 
     allocatable_pages = available_after_claims(node_avail_pages(node),
@@ -1178,12 +1207,12 @@ static struct page_info *alloc_heap_pages(
     if ( unlikely(order > MAX_ORDER) )
         return NULL;
 
-    spin_lock(&heap_lock);
+    node_lock(cpu_to_node(smp_processor_id()));
 
     /* Proceed if host-level memory and claims permit this request to proceed */
     if ( !host_allocatable_request(d, memflags, request) )
     {
-        spin_unlock(&heap_lock);
+        node_unlock(cpu_to_node(smp_processor_id()));
         return NULL;
     }
 
@@ -1195,7 +1224,7 @@ static struct page_info *alloc_heap_pages(
     if ( !pg )
     {
         /* No suitable memory blocks. Fail the request. */
-        spin_unlock(&heap_lock);
+        node_unlock(cpu_to_node(smp_processor_id()));
         return NULL;
     }
 
@@ -1265,7 +1294,7 @@ static struct page_info *alloc_heap_pages(
         init_free_page_fields(&pg[i]);
     }
 
-    spin_unlock(&heap_lock);
+    node_unlock(node);
 
     if ( first_dirty != INVALID_DIRTY_IDX ||
          (scrub_debug && !(memflags & MEMF_no_scrub)) )
@@ -1287,9 +1316,9 @@ static struct page_info *alloc_heap_pages(
 
         if ( dirty_cnt )
         {
-            spin_lock(&heap_lock);
+            node_lock(node);
             node_heaps[node].need_scrub -= dirty_cnt;
-            spin_unlock(&heap_lock);
+            node_unlock(node);
         }
     }
 
@@ -1315,7 +1344,7 @@ static int reserve_offlined_page(struct page_info *head)
     struct page_info *cur_head;
     unsigned int cur_order, first_dirty;
 
-    ASSERT(spin_is_locked(&heap_lock));
+    ASSERT(spin_is_locked(&heap_lock) || node_lock_is_locked(node));
 
     cur_head = head;
 
@@ -1516,7 +1545,7 @@ bool scrub_free_pages(void)
     if ( node == NUMA_NO_NODE )
         return false;
 
-    spin_lock(&heap_lock);
+    node_lock(node);
 
     for ( zone = 0; zone < NR_ZONES; zone++ )
     {
@@ -1536,7 +1565,7 @@ bool scrub_free_pages(void)
                 ASSERT(pg->u.free.scrub_state == BUDDY_NOT_SCRUBBING);
                 pg->u.free.scrub_state = BUDDY_SCRUBBING;
 
-                spin_unlock(&heap_lock);
+                node_unlock(node);
 
                 dirty_cnt = 0;
 
@@ -1566,9 +1595,9 @@ bool scrub_free_pages(void)
                         smp_wmb();
                         pg->u.free.scrub_state = BUDDY_NOT_SCRUBBING;
 
-                        spin_lock(&heap_lock);
+                        node_lock(node);
                         node_heaps[node].need_scrub -= dirty_cnt;
-                        spin_unlock(&heap_lock);
+                        node_unlock(node);
                         goto out_nolock;
                     }
 
@@ -1597,7 +1626,7 @@ bool scrub_free_pages(void)
                 st.first_dirty = (i >= (1U << order) - 1) ?
                     INVALID_DIRTY_IDX : i + 1;
                 st.drop = false;
-                spin_lock_cb(&heap_lock, scrub_continue, &st);
+                node_lock_cb(node, scrub_continue, &st);
 
                 node_heaps[node].need_scrub -= dirty_cnt;
 
@@ -1621,7 +1650,7 @@ bool scrub_free_pages(void)
     }
 
  out:
-    spin_unlock(&heap_lock);
+    node_unlock(node);
 
  out_nolock:
     node_clear(node, node_scrubbing);
@@ -1693,7 +1722,7 @@ static void free_heap_pages(
 
     ASSERT(order <= MAX_ORDER);
 
-    spin_lock(&heap_lock);
+    node_lock(node);
 
     for ( i = 0; i < (1 << order); i++ )
     {
@@ -1711,7 +1740,7 @@ static void free_heap_pages(
             ASSERT(order == 0);
 
             free_color_heap_page(pg, need_scrub);
-            spin_unlock(&heap_lock);
+            node_unlock(node);
             return;
         }
     }
@@ -1787,7 +1816,7 @@ static void free_heap_pages(
     if ( pg_offlined )
         reserve_offlined_page(pg);
 
-    spin_unlock(&heap_lock);
+    node_unlock(node);
 }
 
 
