@@ -1,0 +1,18 @@
+# OCaml dependency files
+**/.ocamldep.make
+
+# OCaml compiler artifacts
+**/*.cmi
+**/*.cmo
+**/*.cmx
+**/*.cmxa
+**/*.cmxs
+**/*.annot
+
+# C compiler artifacts produced by stubs/rules
+**/*.o
+**/*.a
+**/*.so
+
+# Test binaries
+**/test-ocaml-*
