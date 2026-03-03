@@ -11,6 +11,7 @@ SUBDIRS-y += rangeset
 SUBDIRS-y += resource
 SUBDIRS-y += vpci
 SUBDIRS-y += xenstore
+SUBDIRS-$(OCAML_TOOLS) += ocaml
 
 SUBDIRS-$(CONFIG_X86) += cpu-policy
 SUBDIRS-$(CONFIG_X86) += tsx
