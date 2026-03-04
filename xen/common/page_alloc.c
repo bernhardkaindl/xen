@@ -485,6 +485,7 @@ static unsigned long node_need_scrub[MAX_NUMNODES];
 
 static unsigned long *avail[MAX_NUMNODES];
 static long total_avail_pages;
+static unsigned long node_avail_pages[MAX_NUMNODES];
 
 static DEFINE_SPINLOCK(heap_lock);
 static long outstanding_claims; /* total outstanding claims by all domains */
@@ -1043,6 +1044,8 @@ static struct page_info *alloc_heap_pages(
         }
     }
 
+    ASSERT(node_avail_pages[node] >= request);
+    node_avail_pages[node] -= request;
     ASSERT(avail[node][zone] >= request);
     avail[node][zone] -= request;
     total_avail_pages -= request;
@@ -1228,6 +1231,7 @@ static int reserve_offlined_page(struct page_info *head)
         if ( !page_state_is(cur_head, offlined) )
             continue;
 
+        node_avail_pages[node]--;
         avail[node][zone]--;
         total_avail_pages--;
         ASSERT(total_avail_pages >= 0);
@@ -1552,6 +1556,7 @@ static void free_heap_pages(
         }
     }
 
+    node_avail_pages[node] += 1 << order;
     avail[node][zone] += 1 << order;
     total_avail_pages += 1 << order;
     if ( need_scrub )
@@ -2810,7 +2815,7 @@ unsigned long avail_domheap_pages_region(
 
 unsigned long avail_node_heap_pages(unsigned int nodeid)
 {
-    return avail_heap_pages(MEMZONE_XEN, NR_ZONES -1, nodeid);
+    return node_avail_pages[nodeid];
 }
 
 
