@@ -560,23 +560,23 @@ static void release_global_claims(struct domain *d, unsigned long release)
  *
  * Calling with pages == 0 and node_claims == 0 releases all claims.
  */
-int domain_set_outstanding_pages(struct domain *d, unsigned long pages,
-                                 unsigned int node_claims,
-                                 const unsigned int *claims)
+int domain_set_outstanding_pages(struct domain *d, unsigned int nr_claims,
+                                 memory_claim_t *claims)
 {
-    int ret = -ENOMEM;
-    unsigned long claim;
+    int ret = -ENOMEM, i;
+    unsigned long claim = 0;
     nodeid_t node;
 
-    if ( node_claims > MAX_NUMNODES || (node_claims > 0 && claims == NULL) )
-        return -EINVAL;
-    if ( node_claims != 0 && pages != 0 )
-        return -EINVAL;
-
-    /* Validate that all claimed nodes are online */
-    for ( node = 0; node < node_claims; node++ )
-        if ( claims[node] && !node_online(node) )
+    /* Validate the claims and that all claimed nodes are online */
+    for ( i = 0; i < nr_claims; i++ )
+    {
+        node = claims[i].node;
+        if ( node == NUMA_NO_NODE && i > 0 )
             return -EINVAL;
+        if ( node != NUMA_NO_NODE && !node_online(node) )
+            return -EINVAL;
+    }
+
     /*
      * Two locks are needed here:
      *  - d->page_alloc_lock: protects accesses to d->{tot,max,extra}_pages.
@@ -587,7 +587,7 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages,
     spin_lock(&heap_lock);
 
     /* node_claims==0 means: Reset all claims of the domain. */
-    if ( pages == 0 && node_claims == 0 )
+    if ( nr_claims == 0 )
     {
         ret = 0;
         /* Release per-node claims (node counters) */
@@ -622,25 +622,23 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages,
                 goto out;
             }
 
-    if ( pages == 0 ) /* No host-level-claim*/
-        for ( node = 0; node < node_claims; node++ )
-            pages += claims[node];
+    for ( i = 0; i < nr_claims; i++ )
+        claim += claims[i].pages;
 
     /* disallow a claim not exceeding domain_tot_pages() or above max_pages */
-    if ( (pages <= domain_tot_pages(d)) || (pages > d->max_pages) )
+    if ( (claim <= domain_tot_pages(d)) || (claim > d->max_pages) )
     {
         ret = -EINVAL;
         goto out;
     }
 
-    if ( !node_claims )
+    if ( claims[0].node == NUMA_NO_NODE )
     {
         /*
          * How much memory is available?  If the domain has already allocated
          * memory before making a claim, the claim must account for that.
          */
-        claim = pages - domain_tot_pages(d);
-
+        claim = claims[i].pages - domain_tot_pages(d);
         ASSERT(total_avail_pages >= outstanding_claims);
         if ( claim > total_avail_pages - outstanding_claims)
             goto out;
@@ -657,28 +655,29 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages,
          * that the new claim fits in available memory after accounting for
          * existing claims.
          */
-        for ( node = 0; node < node_claims; node++ )
+        for ( i = 0; i < nr_claims; i++ )
         {
+            node = claims[i].node;
             ASSERT(node_avail_pages[node] >= node_outstanding_claims[node]);
-            if ( claims[node] > node_avail_pages[node] -
-                                node_outstanding_claims[node] )
+            /*
+             * We don't substract domain_tot_pages() from the claim(s) as we
+             * want the per-node claim to be able to cover all of the domain's
+             * memory, even if the build of the domain allocated some memory
+             * before the claim was made. This means that the claim can be
+             * precise even if the domain has already allocated memory.
+             */
+            if ( claims[i].pages > node_avail_pages[node] -
+                                   node_outstanding_claims[node] )
                 goto out;
         }
         /* yay, claim fits in available memory, stake the claim, success! */
-        for ( node = 0; node < node_claims; node++ )
+        for ( i = 0; i < nr_claims; i++ )
         {
-            node_outstanding_claims[node] += claims[node];
-            d->claims[node] = claims[node];
+            node_outstanding_claims[claims[i].node] += claims[i].pages;
+            d->claims[claims[i].node] = claims[i].pages;
         }
-        /*
-         * d->outstanding_pages holds the total claim for both host-wide and
-         * per-node modes.  For per-node claims, it is sum(d->claims[]).
-         * Unlike host-wide claims, this is the raw sum without subtracting
-         * domain_tot_pages(d) because we lack per-node allocated-page
-         * tracking (no per-node domain_tot_pages() equivalent yet).
-         */
-        d->tot_node_claims = pages;
-        outstanding_claims += pages;
+        outstanding_claims += claim;
+        d->tot_node_claims = claim;
     }
     ret = 0;
 

@@ -51,6 +51,43 @@ static int xenctl_bitmap_to_nodemask(nodemask_t *nodemask,
                                    MAX_NUMNODES);
 }
 
+/* Claim memory for a domain (or if a claim exists, release the claim) */
+static int claim_memory(struct domain *d,
+    const struct xen_domctl_claim_memory *uinfo)
+{
+    memory_claim_t *claims;
+
+    /* alloc_color_heap_page() does not handle claims, reject LLC coloring. */
+    if ( llc_coloring_enabled )
+        return -EOPNOTSUPP;
+    /*
+     * We only support single claims at the moment, and if the domain is
+     * dying (d->is_dying is set), its claims have already been released.
+     */
+    if ( uinfo->pad || d->is_dying )
+        return -EINVAL;
+
+    claims = xmalloc_array(memory_claim_t, uinfo->nr_claims);
+    if ( claims == NULL )
+        return -ENOMEM;
+
+    if ( copy_from_guest(claims, uinfo->claims, uinfo->nr_claims) )
+        return -EFAULT;
+
+    for ( unsigned int i = 0; i < uinfo->nr_claims; i++ )
+    {
+        /* Convert the tag for a global claim to the NUMA_NO_NODE constant. */
+        if ( claims[i].node == XEN_DOMCTL_CLAIM_MEMORY_NO_NODE )
+            claims[i].node = NUMA_NO_NODE;
+
+        if ( claims[i].pad )
+            return -EINVAL;
+    }
+
+    /* NB. domain_set_outstanding_pages() checks the limits of its arguments. */
+    return domain_set_outstanding_pages(d, uinfo->nr_claims, claims);
+}
+
 void getdomaininfo(struct domain *d, struct xen_domctl_getdomaininfo *info)
 {
     struct vcpu *v;
@@ -863,6 +900,15 @@ long do_domctl(XEN_GUEST_HANDLE_PARAM(xen_domctl_t) u_domctl)
         ret = get_domain_state(&op->u.get_domain_state, d, &op->domain);
         if ( !ret )
             copyback = true;
+        break;
+
+    case XEN_DOMCTL_claim_memory:
+        /* Use the same XSM hook as XENMEM_claim_pages */
+        ret = xsm_claim_pages(XSM_PRIV, d);
+        if ( ret )
+            break;
+
+        ret = claim_memory(d, &op->u.claim_memory);
         break;
 
     default:

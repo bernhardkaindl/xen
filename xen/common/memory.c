@@ -1770,6 +1770,9 @@ long do_memory_op(unsigned long cmd, XEN_GUEST_HANDLE_PARAM(void) arg)
         break;
 
     case XENMEM_claim_pages:
+    {
+        memory_claim_t claim;
+
         if ( llc_coloring_enabled )
             return -EOPNOTSUPP;
 
@@ -1797,13 +1800,15 @@ long do_memory_op(unsigned long cmd, XEN_GUEST_HANDLE_PARAM(void) arg)
         if ( !rc && d->is_dying )
             rc = -EINVAL;
 
+        claim.pages = reservation.nr_extents;
+        claim.node = NUMA_NO_NODE;
         if ( !rc )
-            rc = domain_set_outstanding_pages(d, reservation.nr_extents,
-                                              0, NULL);
+            rc = domain_set_outstanding_pages(d, 1, &claim);
 
         rcu_unlock_domain(d);
 
         break;
+    }
 
     case XENMEM_get_vnumainfo:
     {
