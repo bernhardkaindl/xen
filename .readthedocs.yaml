@@ -8,11 +8,22 @@ build:
 
   tools:
     python: "latest"
+    nodejs: "20"
 
   jobs:
     post_install:
+      # Required for rendering the mermaid diagrams in the offline
+      # documentation (PDF & ePub) formats.
+      - npm install -g @mermaid-js/mermaid-cli
       # Instead of needing a separate requirements.txt
-      - python -m pip install --upgrade --no-cache-dir sphinx-rtd-theme
+      - >
+        python -m pip install --upgrade --no-cache-dir sphinx-rtd-theme
+        sphinxcontrib-mermaid
 
 sphinx:
   configuration: docs/conf.py
+
+# Build PDF & ePub
+formats:
+  - epub
+  - pdf
