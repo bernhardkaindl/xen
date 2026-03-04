@@ -520,6 +520,18 @@ unsigned long domain_adjust_tot_pages(struct domain *d, long pages)
     return d->tot_pages;
 }
 
+/* Release outstanding claims on the domain and the host */
+static void release_global_claims(struct domain *d, unsigned long release)
+{
+    unsigned long consume;
+
+    ASSERT(spin_is_locked(&heap_lock));
+    /* If the allocation was larger than the claims, do not release beyond. */
+    consume = min(release, d->outstanding_pages + 0UL);
+    outstanding_claims -= consume;
+    d->outstanding_pages -= consume;
+}
+
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 {
     int ret = -ENOMEM;
@@ -537,8 +549,7 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
     /* pages==0 means "unset" the claim. */
     if ( pages == 0 )
     {
-        outstanding_claims -= d->outstanding_pages;
-        d->outstanding_pages = 0;
+        release_outstanding_claims(d, d->outstanding_pages);
         ret = 0;
         goto out;
     }
@@ -992,6 +1003,18 @@ static void init_free_page_fields(struct page_info *pg)
     page_set_owner(pg, NULL);
 }
 
+/* Consume outstanding claimed pages when allocating pages for a domain. */
+static void consume_outstanding_claims(struct domain *d,
+    unsigned long allocation)
+{
+    ASSERT(spin_is_locked(&heap_lock));
+    if ( !d )
+        return;
+
+    if ( d->outstanding_pages )
+        release_global_claims(d, allocation);
+}
+
 /* Allocate 2^@order contiguous pages. */
 static struct page_info *alloc_heap_pages(
     unsigned int zone_lo, unsigned int zone_hi,
@@ -1073,8 +1096,7 @@ static struct page_info *alloc_heap_pages(
     ASSERT(total_avail_pages >= request);
     total_avail_pages -= request;
 
-    if ( d && d->outstanding_pages && !(memflags & MEMF_no_refcount) )
-    {
+    if ( !(memflags & MEMF_no_refcount) )
         /*
          * Adjust claims in the same locked region where total_avail_pages is
          * adjusted, not doing so would lead to a window where the amount of
@@ -1090,12 +1112,7 @@ static struct page_info *alloc_heap_pages(
          * the domain being destroyed before creation is finished.  Losing part
          * of the claim makes no difference.
          */
-        unsigned long outstanding = min(d->outstanding_pages + 0UL, request);
-
-        BUG_ON(outstanding > outstanding_claims);
-        outstanding_claims -= outstanding;
-        d->outstanding_pages -= outstanding;
-    }
+        consume_outstanding_claims(d, request);
 
     check_low_mem_virq();
 
