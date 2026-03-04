@@ -1,0 +1,69 @@
+Subject: [PATCH v5 00/11] xen: Add NUMA-aware memory claims for domains
+
+This is v5 of this series.
+Feedback on v4 resulted in several follow-up changes to the core of this
+series. These are small, non-breaking changes. A full list of v5 changes is
+included below.
+
+This series introduces NUMA-aware memory claims and a hypercall API for them.
+
+Patches (one patch was split, one removed, and one OCaml test added):
+
+ 1. xen/page_alloc:  Extract consuming & releasing claims into functions
+ 2. xen/page_alloc:  Add node_avail_pages[], use it in avail_node_heap_pages()
+ 3. xen/page_alloc:  Make total_avail_pages and outstanding_claims unsigned long
+ 4. xen/page_alloc:  Add the implementation of NUMA-node-specific claims
+ 5. xen/domain:      Add the XEN_DOMCTL_claim_memory hypercall handler
+ 6. xsm/flask:       Add a Flask security policy for the new hypercall
+ 7. tools/libs/ctrl:     Add the libxenctrl API xc_domain_claim_memory()
+ 8. tools/ocaml/libs/xc: Add the OCaml binding for xc_domain_claim_memory()
+ 9. tools/tests:         Add testing per-node claims and claims protection
+10. tools/tests/ocaml:   Add OCaml test suite infrastructure with a claims test
+11. docs/guest-guide:    Add comprehensive claims and claims API documentation
+
+The patches are ordered from low-level preparation to implementation to tests
+and documentation. They can be applied over time, but for commit-history
+readability it is best (not required) to keep them in order.
+
+The updated guest-guide is deployed here for reviewing the created output:
+https://bernhardk-xen-review.readthedocs.io/v4.22-claims.v5/guest-guide/
+
+v5 changes:
+
+- #1: Fix function type and formatting, fix location of ASSERT,
+  and retain the original comment (Jan Beulich)
+- #2: Split long -> unsigned long change from #2 to #3,
+  remove reference to previous commit and the accessor macro,
+  and fix comment style to follow Xen rules (Jan Beulich)
+- #3: Split the total_avail_pages/outstanding_claims long -> unsigned long
+  change out from #2
+- #4: Fix cross-node-claim max_pages excess calculation,
+  remove accessor macros and overly verbose comments,
+  fix comments in domctl.h to comply with Xen rules,
+  and add deprecation of XENMEM_claim_pages hypercall command
+  (Bernhard Kaindl, Teddy Astie)
+- v3 #4: Remove (it is not needed for this series) (Bernhard Kaindl)
+- #5: Add that it was requested by Roger Pau Monné in the commit message
+- #6: No change
+- #7: libxc hypercall: Add that Roger requested it to the commit message
+- #8: OCaml API: Release runtime lock (suggested by Christian Lindig)
+- #9: Improve logging in the test case for the new claim_memory API (Bernhard)
+- #10: New: tools/tests: add OCaml test suite infrastructure and add
+  claims test
+- #11: Docs: Add a deprecation notice to XENMEM_claim_pages (Teddy Astie),
+  merge general API semantics from the existing claims infrastructure into a
+  common documentation page, and reference it from the docs for
+  XENMEM_claim_pages and XEN_DOMCTL_claim_memory (Bernhard Kaindl)
+
+With improvements and rebasing on upstream changes, this series has changed
+much since v3. Reviewing as a whole is recommended over an incremental review.
+
+Credits for the NUMA-aware claims infrastructure (patches 2 and 4):
+- Alejandro Vallejo developed the initial version
+- Roger Pau Monné updated the implementation and upstreamed key improvements
+- Marcus Granado contributed analysis and suggestions during development
+- Bernhard Kaindl developed the new domctl API, extended tests and documentation
+  and extracted claims handling code into functions to not be repeated at each
+  claims update location (patches 1, 3 and 5-11)
+
+Comments and feedback welcome.
