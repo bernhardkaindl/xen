@@ -891,6 +891,28 @@ static void check_and_stop_scrub(struct page_info *head)
     }
 }
 
+/* Check whether memory and claims permit this request to proceed */
+static bool claims_permit_request(const struct domain *d,
+                                  unsigned long avail_pages,
+                                  unsigned long claims, unsigned int memflags,
+                                  unsigned long request)
+{
+    unsigned long unclaimed_pages;
+
+    ASSERT(spin_is_locked(&heap_lock));
+    ASSERT(avail_pages >= claims);
+    unclaimed_pages = avail_pages - claims;
+
+    if ( unclaimed_pages >= request ) /* Enough unclaimed pages? */
+        return true;
+
+    /* Else, we need a domain (with claims) and we need to be refcounting */
+    if ( !d || (memflags & MEMF_no_refcount) )
+        return false;
+
+    return request <= unclaimed_pages + d->outstanding_pages;
+}
+
 static struct page_info *get_free_buddy(unsigned int zone_lo,
                                         unsigned int zone_hi,
                                         unsigned int order, unsigned int memflags,
@@ -1036,9 +1058,8 @@ static struct page_info *alloc_heap_pages(
      * Claimed memory is considered unavailable unless the request
      * is made by a domain with sufficient unclaimed pages.
      */
-    if ( (outstanding_claims + request > total_avail_pages) &&
-          ((memflags & MEMF_no_refcount) ||
-           !d || d->outstanding_pages < request) )
+    if ( !claims_permit_request(d, total_avail_pages, outstanding_claims,
+                                memflags, request) )
     {
         spin_unlock(&heap_lock);
         return NULL;
