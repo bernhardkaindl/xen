@@ -417,11 +417,13 @@ struct domain
     unsigned int     tot_pages;
 
     unsigned int     xenheap_pages;     /* pages allocated from Xen heap */
-    /* Pages claimed but not possessed, protected by global heap_lock. */
-    unsigned int     outstanding_pages;
+    /* Current global, host-level claims protected by global heap_lock. */
+    unsigned int     global_claims;
+    /* Current NUMA-node-level claims, the sum of claims[*] for fast-paths */
+    unsigned int     tot_node_claims;
+    unsigned int     claims[MAX_NUMNODES]; /* per-NUMA-node claims */
     unsigned int     max_pages;         /* maximum value for domain_tot_pages() */
     unsigned int     extra_pages;       /* pages not included in domain_tot_pages() */
-    unsigned int     claims[MAX_NUMNODES]; /* per-NUMA-node claims */
 
 #ifdef CONFIG_MEM_SHARING
     atomic_t         shr_pages;         /* shared pages */

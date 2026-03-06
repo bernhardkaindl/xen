@@ -169,9 +169,17 @@ Validation requirements for per-node claims:
 - Each node with a non-zero claim must be online (``node_online(node)``).
 - Each node's claim must not exceed the available unclaimed pages on that
   node.
-- The total claim (sum of per-node claims) minus ``domain_tot_pages(d)``
-  must represent the actual new pages needed, analogous to the host-wide
-  path.
+
+Note on ``domain_tot_pages()`` adjustment:
+
+For host-wide claims, the stored claim is ``pages - domain_tot_pages(d)``,
+accounting for pages the domain has already allocated. For per-node claims,
+there is currently no per-node equivalent of ``domain_tot_pages()`` — we do
+not yet track how many of a domain's allocated pages came from each node.
+Therefore, per-node claims are stored as the raw values from the
+``claims[]`` array, and ``d->outstanding_pages`` is their exact sum. A
+future ``d->total_node_pages[node]`` counter will allow the per-node path
+to mirror the host-wide adjustment.
 
 Protection (``protect_outstanding_claims``)
 -------------------------------------------
@@ -207,37 +215,41 @@ When pages are actually allocated to a domain, the corresponding claims
 must be consumed. This function is called with the allocation size and the
 node from which the allocation was satisfied.
 
-In all cases, ``d->outstanding_pages`` and ``outstanding_claims`` are
-decremented by the consumed amount. The consumption proceeds as follows:
+The consumption logic differs by claim type:
 
-1. Compute the amount to consume:
-   ``consume = min(allocation, d->outstanding_pages)``.
+**Per-node claims**:
 
-2. Decrement ``d->outstanding_pages`` and ``outstanding_claims`` by
-   ``consume``.
+1. Consume from ``d->claims[alloc_node]`` up to the allocation size.
+   Decrement ``d->claims[alloc_node]``, ``d->outstanding_pages``,
+   ``node_outstanding_claims[alloc_node]``, and ``outstanding_claims``
+   by the consumed amount. Claims on other nodes are **not** touched —
+   they remain valid reservations for future allocations from those
+   nodes.
 
-3. If the domain has per-node claims (``d->claims[alloc_node] > 0`` or
-   other ``d->claims[]`` entries are non-zero):
+2. Check whether the domain is now over-booked: if
+   ``domain_tot_pages(d) + allocation + d->outstanding_pages`` exceeds
+   ``d->max_pages``, trim per-node claims on other nodes to bring the
+   total within budget, decrementing all four counters in lockstep
+   (``d->claims[node]``, ``d->outstanding_pages``,
+   ``node_outstanding_claims[node]``, ``outstanding_claims``).
 
-   a. Consume from ``d->claims[alloc_node]`` up to the allocation size.
-      Decrement ``d->claims[alloc_node]`` and
-      ``node_outstanding_claims[alloc_node]`` by the consumed amount.
+   This handles the case where a domain builder allocates from a
+   fallback node (e.g., a node where the domain had no claim), and the
+   extra allocation pushes the domain closer to its ``max_pages``
+   limit — the claims on other nodes must then shrink to reflect that.
+   If the domain is not over-booked, all other claims are preserved.
 
-   b. If the allocation exceeds the claim on ``alloc_node`` (i.e., pages
-      were allocated from a node where the domain didn't have enough
-      claim, or had no claim at all), check whether the total booked
-      pages (``domain_tot_pages(d) + allocation +
-      d->outstanding_pages``) exceeds ``d->max_pages``. If so, reduce
-      claims on other nodes to bring the total within budget. This
-      handles the case where a domain builder allocates from an
-      unintended node (e.g., fallback allocation), and the claims on
-      other nodes must shrink to reflect that the domain is closer to
-      its ``max_pages`` limit.
+**Host-wide claims** (``d->claims[]`` all zero):
 
-   c. When reducing claims on other nodes, **all four counters** must be
-      decremented in lockstep: ``d->claims[node]``,
-      ``d->outstanding_pages``, ``node_outstanding_claims[node]``, and
-      ``outstanding_claims``.
+1. Consume ``min(allocation, d->outstanding_pages)`` directly from
+   ``d->outstanding_pages`` and ``outstanding_claims``.
+2. The over-booking loop is a no-op since there are no per-node claims
+   to trim.
+
+The invariant ``sum(d->claims[]) == d->outstanding_pages`` is maintained
+in both modes because ``d->outstanding_pages`` is only decremented
+alongside the corresponding ``d->claims[]`` entries (or alone in
+host-wide mode where all entries are zero).
 
 Release
 -------

@@ -503,14 +503,6 @@ static unsigned long outstanding_claims;
 /* Sum of the outstanding claims of all domains on that node. */
 static unsigned long node_outstanding_claims[MAX_NUMNODES];
 
-/* Return available pages after subtracting claimed pages. */
-static inline unsigned long available_after_claims(unsigned long avail_pages,
-                                                   unsigned long claims)
-{
-    BUG_ON(claims > avail_pages);
-    return avail_pages - claims; /* Due to the BUG_ON, it cannot be negative */
-}
-
 static unsigned long avail_heap_pages(
     unsigned int zone_lo, unsigned int zone_hi, unsigned int node)
 {
@@ -541,19 +533,16 @@ unsigned long domain_adjust_tot_pages(struct domain *d, long pages)
 }
 
 /* Release outstanding claims on the domain and the host */
-static bool release_global_claims(struct domain *d, unsigned long release)
+static void release_global_claims(struct domain *d, unsigned long release)
 {
     unsigned long consume;
 
     ASSERT(spin_is_locked(&heap_lock));
     /* If the allocation was larger than the claims, do not release beyond. */
-    consume = min(release, d->outstanding_pages + 0UL);
-    if ( !consume )
-        return false;
+    consume = min(release, d->global_claims + 0UL);
     ASSERT(outstanding_claims >= consume);
     outstanding_claims -= consume;
-    d->outstanding_pages -= consume;
-    return true;
+    d->global_claims -= consume;
 }
 
 /*
@@ -561,6 +550,8 @@ static bool release_global_claims(struct domain *d, unsigned long release)
  *
  * A domain can have either a global host-wide claim (pages > 0, node_claims == 0)
  * or per-NUMA-node claims (pages == 0, node_claims > 0), but not both.
+ * In both modes, d->outstanding_pages holds the domain's total claim count.
+ * For per-node claims, d->outstanding_pages == sum(d->claims[]).
  *
  * Parameters:
  *  - pages: Total pages for a host-wide claim.  Must be 0 when node_claims > 0.
@@ -589,7 +580,7 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages,
     /*
      * Two locks are needed here:
      *  - d->page_alloc_lock: protects accesses to d->{tot,max,extra}_pages.
-     *  - heap_lock: protects accesses to d->outstanding_pages, total_avail_pages
+     *  - heap_lock: protects accesses to d->*_claims, total_avail_pages
      *    and outstanding_claims.
      */
     nrspin_lock(&d->page_alloc_lock);
@@ -599,25 +590,26 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages,
     if ( pages == 0 && node_claims == 0 )
     {
         ret = 0;
-        if ( release_global_claims(d, d->outstanding_pages) )
-            goto out;
-        /* Release per-node claims */
+        /* Release per-node claims (node counters) */
         for ( node = 0; node < MAX_NUMNODES; node++ )
         {
             if ( d->claims[node] )
             {
-                ASSERT(outstanding_claims >= d->claims[node]);
-                outstanding_claims -= d->claims[node];
                 ASSERT(node_outstanding_claims[node] >= d->claims[node]);
+                ASSERT(outstanding_claims >= d->claims[node]);
                 node_outstanding_claims[node] -= d->claims[node];
+                d->tot_node_claims -= d->claims[node];
+                outstanding_claims -= d->claims[node];
                 d->claims[node] = 0;
             }
         }
+        ASSERT(d->tot_node_claims == 0);
+        release_global_claims(d, d->global_claims);
         goto out;
     }
 
     /* If the domain already has an active claim, reject the new claim */
-    if ( d->outstanding_pages )
+    if ( d->global_claims )
     {
         ret = -EINVAL;
         goto out;
@@ -641,23 +633,30 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages,
         goto out;
     }
 
-    /* how much memory is available? */
     if ( !node_claims )
     {
-        ASSERT(total_avail_pages >= outstanding_claims);
         /*
-         * Note, if domain has already allocated memory before making a claim
-         * then the claim must take domain_tot_pages() into account
+         * How much memory is available?  If the domain has already allocated
+         * memory before making a claim, the claim must account for that.
          */
         claim = pages - domain_tot_pages(d);
+
+        ASSERT(total_avail_pages >= outstanding_claims);
         if ( claim > total_avail_pages - outstanding_claims)
             goto out;
         /* yay, claim fits in available memory, stake the claim, success! */
-        d->outstanding_pages = claim;
-        outstanding_claims += d->outstanding_pages;
+        d->global_claims = claim;
+        outstanding_claims += d->global_claims;
     }
     else
     {
+        /*
+         * We don't have a domain_tot_pages() equivalent for per-node claims
+         * (since the domain may have allocated from any node), so we until
+         * we have, take the claims we got as the claim delta and validate
+         * that the new claim fits in available memory after accounting for
+         * existing claims.
+         */
         for ( node = 0; node < node_claims; node++ )
         {
             ASSERT(node_avail_pages[node] >= node_outstanding_claims[node]);
@@ -668,10 +667,18 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages,
         /* yay, claim fits in available memory, stake the claim, success! */
         for ( node = 0; node < node_claims; node++ )
         {
-            outstanding_claims += claims[node];
             node_outstanding_claims[node] += claims[node];
             d->claims[node] = claims[node];
         }
+        /*
+         * d->outstanding_pages holds the total claim for both host-wide and
+         * per-node modes.  For per-node claims, it is sum(d->claims[]).
+         * Unlike host-wide claims, this is the raw sum without subtracting
+         * domain_tot_pages(d) because we lack per-node allocated-page
+         * tracking (no per-node domain_tot_pages() equivalent yet).
+         */
+        d->tot_node_claims = pages;
+        outstanding_claims += pages;
     }
     ret = 0;
 
@@ -978,7 +985,7 @@ static bool claims_permit_request(const struct domain *d,
         return false;
 
     if ( node == NUMA_NO_NODE )
-        applicable_claims = d->outstanding_pages;
+        applicable_claims = d->global_claims;
     else
         applicable_claims = d->claims[node];
 
@@ -1105,66 +1112,76 @@ static void init_free_page_fields(struct page_info *pg)
     page_set_owner(pg, NULL);
 }
 
-/* Consume outstanding claimed pages when allocating pages for a domain. */
+/*
+ * Consume outstanding claimed pages when allocating pages for a domain.
+ *
+ * For per-node claims, only the alloc_node's claim is consumed directly.
+ * Claims on other nodes are left intact unless the total booked pages
+ * (domain_tot_pages + allocation + outstanding) would exceed d->max_pages,
+ * in which case per-node claims are trimmed to be within the max_pages budget.
+ */
 static void consume_outstanding_claims(struct domain *d,
     unsigned long allocation, nodeid_t alloc_node)
 {
-    unsigned long booked_pages, remaining_claims, excess, node_consume;
-    unsigned long consume;
+    unsigned long booked_pages, excess, consume;
     nodeid_t node;
 
     ASSERT(spin_is_locked(&heap_lock));
     if ( !d )
         return;
-    if ( release_global_claims(d, allocation) )
-        return;
 
-    /* If the domain has a claim for the allocation node, consume from it. */
-    node_consume = min(allocation, d->claims[alloc_node] + 0UL);
-    if ( node_consume )
+    if ( d->global_claims != 0 )
     {
-        ASSERT(total_avail_pages >= node_consume);
-        ASSERT(node_avail_pages[alloc_node] >= node_consume);
-        ASSERT(outstanding_claims >= node_consume);
-
-        outstanding_claims -= node_consume;
-        node_outstanding_claims[alloc_node] -= node_consume;
-        d->claims[alloc_node] -= node_consume;
+        release_global_claims(d, allocation);
+        return; /* We don't use global and node claims for the same domain */
     }
-    consume = allocation - node_consume;
-    if ( !consume ) /* The node-claim consumed the entire allocation */
-        return;
+
+    if ( d->tot_node_claims == 0 )
+        return; /* No NUMA claims */
+
+    /* Node-claims: Try to only consume from the allocation node's claim. */
+    consume = min(allocation, d->claims[alloc_node] + 0UL);
+    if ( consume )
+    {
+        d->claims[alloc_node] -= consume;
+        d->tot_node_claims -= consume;
+        ASSERT(node_outstanding_claims[alloc_node] >= consume);
+        node_outstanding_claims[alloc_node] -= consume;
+        ASSERT(outstanding_claims >= consume);
+        outstanding_claims -= consume;
+    }
+    if ( consume == allocation )
+        return; /* Fully covered by the node claim, no need to check further */
 
     /*
-     * The allocation exceeded the remaining claims on the claim_node (if any),
-     * so we need to check if the reminder of the allocation needs to reduce
-     * claims on other nodes for d to not exceed the domain's max_pages if
-     * counting claims also as memory set aside for the domain.
+     * The node-claim didn't cover the entire allocation, but the domain may
+     * have other claims, and we need to ensure that the total booked pages
+     * (d->tot_pages + allocation + outstanding) does not exceed d->max_pages.
      */
-
-    /* Compute sum of remaining per-node claims of the domain */
-    remaining_claims = 0;
-    for ( node = 0; node < MAX_NUMNODES; node++ )
-        remaining_claims += d->claims[node];
-
-    booked_pages = domain_tot_pages(d) + allocation + remaining_claims;
-    if ( booked_pages <= d->max_pages )
-        return; /* booked is within max_pages, keep the remaining claims */
-
-    /* Excess detected, release the exceeding pages from claimed nodes. */
-    excess = min(consume, booked_pages - d->max_pages);
+    booked_pages = domain_tot_pages(d) + allocation + d->global_claims;
+    excess = booked_pages - d->max_pages;
+    /* If we are within the max_pages limit, no need to trim other claims. */
+    if ( likely(excess <= 0) )
+        return;
+    
+    /*
+     * Is shouldn't happen, but if it does, protect the host memory here:
+     * As the allocation was not (fully) covered by a node claim, to prevent
+     * the domain from exceeding its max_pages budget using claims on other
+     * nodes, we need to trim those claims to fit within the max_pages budget.
+     */
     for ( node = 0; excess > 0 && node < MAX_NUMNODES; node++ )
-    {
-        if ( !d->claims[node] )
-            continue;
-        node_consume = min(excess, d->claims[node] + 0UL);
-        ASSERT(outstanding_claims >= node_consume);
-        ASSERT(node_outstanding_claims[node] >= node_consume);
-        outstanding_claims -= node_consume;
-        node_outstanding_claims[node] -= node_consume;
-        d->claims[node] -= node_consume;
-        excess -= node_consume;
-    }
+        if ( d->claims[node] )
+        {
+            consume = min(excess, d->claims[node] + 0UL);
+            d->claims[node] -= consume;
+            d->tot_node_claims -= consume;
+            ASSERT(node_outstanding_claims[node] >= consume);
+            node_outstanding_claims[node] -= consume;
+            ASSERT(outstanding_claims >= consume);
+            outstanding_claims -= consume;
+            excess -= consume;
+        }
 }
 
 /* Allocate 2^@order contiguous pages. */

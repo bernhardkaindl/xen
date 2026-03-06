@@ -97,7 +97,7 @@ void getdomaininfo(struct domain *d, struct xen_domctl_getdomaininfo *info)
 
     info->tot_pages         = domain_tot_pages(d);
     info->max_pages         = d->max_pages;
-    info->outstanding_pages = d->outstanding_pages;
+    info->outstanding_pages = d->global_claims + d->tot_node_claims;
 #ifdef CONFIG_MEM_SHARING
     info->shr_pages         = atomic_read(&d->shr_pages);
 #endif
