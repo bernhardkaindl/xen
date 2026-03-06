@@ -417,8 +417,11 @@ struct domain
     unsigned int     tot_pages;
 
     unsigned int     xenheap_pages;     /* pages allocated from Xen heap */
-    /* Pages claimed but not possessed, protected by global heap_lock. */
-    unsigned int     outstanding_pages;
+
+    /* All claims are protected by the heap_lock */
+    unsigned int     global_claims;     /* Global Host-level claims */
+    unsigned int     node_claims;       /* Sum of the Node-specific claims */
+
     unsigned int     max_pages;         /* maximum value for domain_tot_pages() */
     unsigned int     extra_pages;       /* pages not included in domain_tot_pages() */
 
