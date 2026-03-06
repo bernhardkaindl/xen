@@ -421,6 +421,7 @@ struct domain
     unsigned int     outstanding_pages;
     unsigned int     max_pages;         /* maximum value for domain_tot_pages() */
     unsigned int     extra_pages;       /* pages not included in domain_tot_pages() */
+    unsigned int     claims[MAX_NUMNODES]; /* per-NUMA-node claims */
 
 #ifdef CONFIG_MEM_SHARING
     atomic_t         shr_pages;         /* shared pages */

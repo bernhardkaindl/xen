@@ -1798,7 +1798,8 @@ long do_memory_op(unsigned long cmd, XEN_GUEST_HANDLE_PARAM(void) arg)
             rc = -EINVAL;
 
         if ( !rc )
-            rc = domain_set_outstanding_pages(d, reservation.nr_extents);
+            rc = domain_set_outstanding_pages(d, reservation.nr_extents,
+                                              0, NULL);
 
         rcu_unlock_domain(d);
 

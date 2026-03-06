@@ -569,6 +569,15 @@ DEFINE_XEN_GUEST_HANDLE(xen_mem_sharing_op_t);
  * for 10, only 7 additional pages are claimed.
  *
  * Caller must be privileged or the hypercall fails.
+ *
+ * Note: This hypercall is deprecated by XEN_DOMCTL_claim_memory
+ * which provides the same claim semantics described above, and thus can be
+ * used as drop-in replacement and is extended for NUMA-node-specific claims.
+ * This hypercall should not be used by new code.
+ *
+ * See the following documentation pages for more information:
+ * docs/guest-guide/dom/DOMCTL_claim_memory.rst
+ * docs/guest-guide/mem/XENMEM_claim_pages.rst
  */
 #define XENMEM_claim_pages                  24
 
