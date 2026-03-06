@@ -1435,6 +1435,56 @@ CAMLprim value stub_xc_watchdog(value xch_val, value domid, value timeout)
 	CAMLreturn(Val_int(ret));
 }
 
+CAMLprim value stub_xc_domain_claim_memory(value xch_val, value domid,
+                                           value claims)
+{
+	CAMLparam3(xch_val, domid, claims);
+	xc_interface *xch = xch_of_val(xch_val);
+	mlsize_t nr_claims = Wosize_val(claims);
+	memory_claim_t *claim;
+	uint32_t c_domid = (uint32_t)Int_val(domid);
+	int retval;
+
+	if (nr_claims > XEN_DOMCTL_CLAIM_MEMORY_MAX_CLAIMS)
+		caml_invalid_argument("domain_claim_memory: too many claims");
+
+	claim = calloc(nr_claims, sizeof(*claim));
+	if (claim == NULL && nr_claims != 0)
+		caml_raise_out_of_memory();
+
+	for (mlsize_t i = 0; i < nr_claims; i++) {
+		value claim_rec = Field(claims, i);
+		int64_t pages = Int64_val(Field(claim_rec, 0));
+		int32_t node = Int32_val(Field(claim_rec, 1));
+		uint32_t c_node;
+
+		if (pages < 0 || node < -1 ) {
+			free(claim);
+			caml_invalid_argument("domain_claim_memory: invalid pages or node");
+		}
+
+		if (node == -1)
+			c_node = XEN_DOMCTL_CLAIM_MEMORY_GLOBAL;
+		else
+			c_node = (uint32_t)node;
+
+		claim[i] = (memory_claim_t) {
+			.pages = (unsigned long)pages, .node = c_node
+		};
+	}
+
+	/* May have to wait for the domctl lock, release the OCaml runtime lock. */
+	caml_enter_blocking_section();
+	retval = xc_domain_claim_memory(xch, c_domid, nr_claims, claim);
+	caml_leave_blocking_section();
+
+	free(claim);
+	if (retval < 0)
+		failwith_xc(xch);
+
+	CAMLreturn(Val_unit);
+}
+
 /*
  * Local variables:
  *  indent-tabs-mode: t
