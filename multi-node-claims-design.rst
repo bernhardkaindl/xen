@@ -15,54 +15,59 @@ enabling a domain builder to reserve specific amounts of memory on specific
 NUMA nodes. This is essential for NUMA-aware domain construction where a
 domain's memory should be distributed across nodes.
 
-Design Choice: Mutual Exclusivity of Claim Types
--------------------------------------------------
-
-A domain can have **either** a global host-wide claim **or** per-NUMA-node
-claims, but never both simultaneously. This mutual exclusivity simplifies
-the implementation and avoids ambiguity in the allocation and consumption
-paths.
+Design Choice: ``d->outstanding_pages`` as Unified Total
+---------------------------------------------------------
 
 The two claim types serve different use cases:
 
-- **Host-wide claims** (``d->outstanding_pages``): Used by the existing
-  ``XENMEM_claim_pages`` hypercall path and any domain builder that does
-  not need NUMA-aware memory placement. The claim is a single count of
-  pages reserved against the global ``total_avail_pages`` pool.
+- **Host-wide claims** (``d->outstanding_pages`` only): Used by the
+  existing ``XENMEM_claim_pages`` hypercall path and any domain builder
+  that does not need NUMA-aware memory placement. The claim is a single
+  count of pages reserved against the global ``total_avail_pages`` pool.
+  All ``d->claims[node]`` entries are zero.
 
 - **Per-node claims** (``d->claims[node]``): Used by NUMA-aware domain
   builders that need to reserve specific amounts of memory on specific
   NUMA nodes. Each entry in the array is a count of pages reserved against
   that node's ``node_avail_pages[node]`` pool.
 
-The field ``d->outstanding_pages`` must only be non-zero when the domain
-has a global host-wide claim. Conversely, any ``d->claims[node]`` entry
-must only be non-zero when the domain has per-node claims. The setting
-and release paths enforce this invariant by rejecting a new claim if any
-claim of either type is already active.
+In both modes, ``d->outstanding_pages`` holds the domain's **total**
+outstanding claim count. For host-wide claims this is set directly. For
+per-node claims it equals ``sum(d->claims[])``. The setting and release
+paths maintain this invariant, and reject a new claim if any claim of
+either type is already active.
 
-This is the cleanest separation because:
+This differs from an earlier design that kept ``d->outstanding_pages``
+at zero during per-node claiming. That approach had a **correctness
+bug** in the global protection check:
 
-1. **No double-counting**: The global ``outstanding_claims`` counter tracks
-   the sum of all claims (both host-wide and per-node). If a domain had
-   both types simultaneously, the consumption logic would need to determine
-   which counter to decrement for each allocation, introducing fragile
-   ordering dependencies.
+  The global check in ``alloc_heap_pages`` tests whether the request fits
+  within ``unclaimed_pages + d->outstanding_pages``. With
+  ``d->outstanding_pages == 0`` during per-node claiming, the domain gets
+  **no credit** at the global level. This incorrectly rejects allocations
+  when other domains' claims reduce the global unclaimed pool below the
+  request size, even though the node-level check passed.
 
-2. **Clear consumption semantics**: When an allocation occurs on a
-   particular node, the consumption path can simply check: does this
-   domain have host-wide claims? If so, decrement ``d->outstanding_pages``
-   and ``outstanding_claims``. Otherwise, decrement ``d->claims[node]``
-   and both ``node_outstanding_claims[node]`` and ``outstanding_claims``.
-   There is no ambiguity.
+  Example: Node 0 has 100 free pages with 90 claimed by domain A. Node 1
+  has 10 free pages with 5 claimed by domain B. Globally: 110 free, 95
+  claimed, 15 unclaimed. Domain A requests 20 pages from node 0.
+  Node check: 20 ≤ 10 + 90 = 100 → pass. Global check with the old
+  design: 20 ≤ 15 + 0 = 15 → **fail**. With the corrected design:
+  20 ≤ 15 + 90 = 105 → **pass**.
 
-3. **Clean protection semantics**: The ``protect_outstanding_claims()``
-   function, which decides whether an allocation should proceed despite
-   claimed memory reducing the apparent free count, can select the
-   appropriate claim counter based solely on whether the check is
-   node-level or global. At the node level, it uses ``d->claims[node]``;
-   at the global level, it uses ``d->outstanding_pages``. No
-   cross-referencing is needed.
+Having ``d->outstanding_pages`` always hold the total also:
+
+1. **Avoids hot-path loops**: The global protection check uses
+   ``d->outstanding_pages`` in O(1) without iterating ``d->claims[]``.
+
+2. **Simplifies the global invariant**: ``outstanding_claims`` equals
+   the sum of ``d->outstanding_pages`` over all domains — no need to
+   separately account for per-node claims.
+
+3. **Clear consumption semantics**: The consumption path always
+   decrements ``d->outstanding_pages`` and ``outstanding_claims``
+   together. For per-node claims it additionally adjusts
+   ``d->claims[node]`` and ``node_outstanding_claims[node]``.
 
 Per-Node Claims Storage
 -----------------------
@@ -98,31 +103,37 @@ Global Accounting
 
 Three levels of accounting are maintained:
 
-1. **Per-domain host-wide**: ``d->outstanding_pages`` — total pages
-   claimed globally by this domain (only for host-wide claims).
+1. **Per-domain total**: ``d->outstanding_pages`` — total pages claimed
+   by this domain across all claim types. For host-wide claims this is
+   the single claim value. For per-node claims this equals
+   ``sum(d->claims[])``.
 
 2. **Per-domain per-node**: ``d->claims[node]`` — pages claimed by this
-   domain on a specific NUMA node (only for per-node claims).
+   domain on a specific NUMA node (zero for host-wide claims).
 
-3. **Global host-wide**: ``outstanding_claims`` — sum of all domains'
-   outstanding claims (both types). Used by ``total_avail_pages -
+3. **Global total**: ``outstanding_claims`` — sum of all domains'
+   ``d->outstanding_pages``. Used by ``total_avail_pages -
    outstanding_claims`` to compute globally available unclaimed memory.
 
 4. **Global per-node**: ``node_outstanding_claims[node]`` — sum of all
-   domains' per-node claims on a given node. Used by
+   domains' ``d->claims[node]`` on a given node. Used by
    ``node_avail_pages[node] - node_outstanding_claims[node]`` to compute
    per-node available unclaimed memory.
 
 Invariants:
 
-- ``outstanding_claims == sum over all domains of (d->outstanding_pages +
-  sum over all nodes of d->claims[node])``
+- ``outstanding_claims == sum over all domains of d->outstanding_pages``
+
+- For per-node claims:
+  ``d->outstanding_pages == sum over all nodes of d->claims[node]``
 
 - ``node_outstanding_claims[node] == sum over all domains of
   d->claims[node]``
 
-- For any domain, either ``d->outstanding_pages > 0`` or some
-  ``d->claims[node] > 0``, but never both.
+- For any domain, either ``d->outstanding_pages > 0`` with all
+  ``d->claims[node] == 0`` (host-wide), or ``d->outstanding_pages > 0``
+  with some ``d->claims[node] > 0`` (per-node), or everything is zero
+  (no claims).
 
 Setting Claims (``domain_set_outstanding_pages``)
 -------------------------------------------------
@@ -179,12 +190,15 @@ Two call sites exist:
    ``total_avail_pages``, ``outstanding_claims``, and ``NUMA_NO_NODE``.
    Uses ``d->outstanding_pages`` as the domain's applicable claim.
 
-For a domain with per-node claims, the node-level check is the primary
-gate. The global check will see ``d->outstanding_pages == 0``, so it falls
-back to the unclaimed-pages-only check. This is correct because if the
-node-level check passed (meaning the node has enough unclaimed + claimed
-pages for this domain), the global check should also pass (the global pool
-is at least as large as any single node's pool).
+Because ``d->outstanding_pages`` always holds the domain's total claim
+(whether host-wide or the sum of per-node claims), the global check
+correctly grants the domain credit for its full claimed reservation.
+This is an O(1) check with no need to iterate ``d->claims[]``.
+
+For a domain with per-node claims, the node-level check provides the
+primary NUMA-aware gate, while the global check ensures the domain can
+still allocate even when other domains' claims reduce the global
+unclaimed count.
 
 Consumption (``consume_outstanding_claims``)
 --------------------------------------------
@@ -193,30 +207,37 @@ When pages are actually allocated to a domain, the corresponding claims
 must be consumed. This function is called with the allocation size and the
 node from which the allocation was satisfied.
 
-For host-wide claims (``d->outstanding_pages > 0``):
+In all cases, ``d->outstanding_pages`` and ``outstanding_claims`` are
+decremented by the consumed amount. The consumption proceeds as follows:
 
-- Consume up to ``min(allocation, d->outstanding_pages)`` from
-  ``d->outstanding_pages`` and ``outstanding_claims``.
+1. Compute the amount to consume:
+   ``consume = min(allocation, d->outstanding_pages)``.
 
-For per-node claims (``d->claims[]`` active):
+2. Decrement ``d->outstanding_pages`` and ``outstanding_claims`` by
+   ``consume``.
 
-- First, consume from ``d->claims[alloc_node]`` up to the allocation size.
-  Decrement ``d->claims[alloc_node]``, ``node_outstanding_claims[alloc_node]``,
-  and ``outstanding_claims`` by the consumed amount.
+3. If the domain has per-node claims (``d->claims[alloc_node] > 0`` or
+   other ``d->claims[]`` entries are non-zero):
 
-- If the allocation exceeds the claim on ``alloc_node`` (i.e., pages were
-  allocated from a node where the domain didn't have enough claim, or had
-  no claim at all), check whether the total booked pages
-  (``domain_tot_pages(d) + allocation + remaining_total_claims``) exceeds
-  ``d->max_pages``. If so, reduce claims on other nodes to bring the total
-  within budget. This handles the case where a domain builder allocates
-  from an unintended node (e.g., fallback allocation), and the claims on
-  other nodes must shrink to reflect that the domain is closer to its
-  ``max_pages`` limit.
+   a. Consume from ``d->claims[alloc_node]`` up to the allocation size.
+      Decrement ``d->claims[alloc_node]`` and
+      ``node_outstanding_claims[alloc_node]`` by the consumed amount.
 
-- When reducing claims on other nodes, **all three counters** must be
-  decremented: ``d->claims[node]``, ``node_outstanding_claims[node]``,
-  and ``outstanding_claims``.
+   b. If the allocation exceeds the claim on ``alloc_node`` (i.e., pages
+      were allocated from a node where the domain didn't have enough
+      claim, or had no claim at all), check whether the total booked
+      pages (``domain_tot_pages(d) + allocation +
+      d->outstanding_pages``) exceeds ``d->max_pages``. If so, reduce
+      claims on other nodes to bring the total within budget. This
+      handles the case where a domain builder allocates from an
+      unintended node (e.g., fallback allocation), and the claims on
+      other nodes must shrink to reflect that the domain is closer to
+      its ``max_pages`` limit.
+
+   c. When reducing claims on other nodes, **all four counters** must be
+      decremented in lockstep: ``d->claims[node]``,
+      ``d->outstanding_pages``, ``node_outstanding_claims[node]``, and
+      ``outstanding_claims``.
 
 Release
 -------
@@ -231,7 +252,8 @@ Claims are released in two scenarios:
    ``domain_set_outstanding_pages(d, 0, 0, NULL)`` to release any active
    claims before teardown.
 
-The release path iterates over all nodes to clear per-node claims, or
-clears ``d->outstanding_pages`` for host-wide claims. Due to the mutual
-exclusivity invariant, only one type needs to be active at any time, but
-as a defensive measure the release path should clear both unconditionally.
+The release path clears ``d->outstanding_pages`` and iterates over all
+nodes to clear any ``d->claims[node]`` entries, decrementing
+``outstanding_claims`` and ``node_outstanding_claims[node]``
+accordingly. As a defensive measure, both are cleared unconditionally
+regardless of which claim type was active.
