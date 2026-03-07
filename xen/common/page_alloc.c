@@ -1258,6 +1258,29 @@ static int reserve_offlined_page(struct page_info *head)
         count++;
     }
 
+    if ( count )
+    {
+        long recall;
+        struct domain *d;
+
+        recall = outstanding_claims - total_avail_pages;
+        if ( recall > 0 )
+            /*
+             * The total_avail_pages are below outstanding_claims.
+             * Release some claims to keep the amount of claimed
+             * memory in line with the amount of available memory.
+             */
+            for_each_domain ( d )
+            {
+                if ( d->outstanding_pages )
+                {
+                    recall -= release_global_claims(d, recall);
+                    if ( recall <= 0 )
+                        break;
+                }
+            }
+    }
+
     return count;
 }
 
