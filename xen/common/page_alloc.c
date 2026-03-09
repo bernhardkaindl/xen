@@ -570,8 +570,8 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
         goto out;
     }
 
-    /* only one active claim per domain please */
-    if ( d->global_claims )
+    /* Reject updating global claims and we can't update node claims */
+    if ( d->global_claims || d->node_claims )
     {
         ret = -EINVAL;
         goto out;
@@ -895,9 +895,9 @@ static void check_and_stop_scrub(struct page_info *head)
 static bool claims_permit_request(const struct domain *d,
                                   unsigned long avail_pages,
                                   unsigned long claims, unsigned int memflags,
-                                  unsigned long request)
+                                  unsigned long request, nodeid_t node)
 {
-    unsigned long unclaimed_pages;
+    unsigned long unclaimed_pages, applicable_claims;
 
     ASSERT(spin_is_locked(&heap_lock));
     ASSERT(avail_pages >= claims);
@@ -910,7 +910,9 @@ static bool claims_permit_request(const struct domain *d,
     if ( !d || (memflags & MEMF_no_refcount) )
         return false;
 
-    return request <= unclaimed_pages + d->global_claims;
+    applicable_claims = d->global_claims;
+
+    return request <= unclaimed_pages + applicable_claims;
 }
 
 static struct page_info *get_free_buddy(unsigned int zone_lo,
@@ -1059,7 +1061,7 @@ static struct page_info *alloc_heap_pages(
      * is made by a domain with sufficient unclaimed pages.
      */
     if ( !claims_permit_request(d, total_avail_pages, outstanding_claims,
-                                memflags, request) )
+                                memflags, request, NUMA_NO_NODE) )
     {
         spin_unlock(&heap_lock);
         return NULL;
