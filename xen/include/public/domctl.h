@@ -1276,6 +1276,41 @@ struct xen_domctl_get_domain_state {
     uint64_t unique_id;      /* Unique domain identifier. */
 };
 
+/*
+ * Used to pass an array of claims to domain_set_outstanding_pages().
+ */
+struct xen_memory_claim {
+    uint64_aligned_t pages; /* Number of pages to claim */
+    uint32_t node; /* Node and/or claim type like legacy or a global claim */
+    uint32_t pad;  /* Explicit padding: Reserved, initialize to 0 on input */
+};
+typedef struct xen_memory_claim memory_claim_t;
+DEFINE_XEN_GUEST_HANDLE(memory_claim_t);
+/* Claim types for the node field of memory_claim_t */
+#define XEN_DOMCTL_CLAIM_MEMORY_LEGACY 0x40000000U /* No node, legacy claim */
+
+/*
+ * XEN_DOMCTL_claim_memory
+ *
+ * Claim memory for a guest domain. It sets aside an amount of memory
+ * (it is not pre-allocated) for the purpose of satisfying future memory
+ * allocation requests for building the guest's physical address space.
+ * This is used to ensure that the domain has a guaranteed amount of
+ * memory available to it, even if the system is under memory pressure.
+ * At the moment, only the legacy claim type XEN_DOMCTL_CLAIM_MEMORY_LEGACY
+ * is supported, which does not specify a NUMA node and is satisfied from
+ * any available memory on the system.
+ */
+struct xen_domctl_claim_memory {
+    /* IN: Array of struct xen_memory_claim */
+    XEN_GUEST_HANDLE_64(memory_claim_t) claims;
+    /* IN: Number of claims in the claims array handle. */
+    uint32_t nr_claims;
+    uint32_t pad;  /* Explicit padding: Reserved, initialize to 0 on input */
+};
+/* Maximum number of claims array elements API functions must support */
+#define XEN_DOMCTL_CLAIM_MEMORY_MAX_CLAIMS 1
+
 struct xen_domctl {
 /* Stable domctl ops: interface_version is required to be 0.  */
     uint32_t cmd;
@@ -1367,7 +1402,8 @@ struct xen_domctl {
 #define XEN_DOMCTL_dt_overlay                    87
 #define XEN_DOMCTL_gsi_permission                88
 #define XEN_DOMCTL_set_llc_colors                89
-#define XEN_DOMCTL_get_domain_state              90 /* stable interface */
+#define XEN_DOMCTL_get_domain_state              90
+#define XEN_DOMCTL_claim_memory                  91 /* stable interface */
 #define XEN_DOMCTL_gdbsx_guestmemio            1000
 #define XEN_DOMCTL_gdbsx_pausevcpu             1001
 #define XEN_DOMCTL_gdbsx_unpausevcpu           1002
@@ -1436,6 +1472,7 @@ struct xen_domctl {
 #endif
         struct xen_domctl_set_llc_colors    set_llc_colors;
         struct xen_domctl_get_domain_state  get_domain_state;
+        struct xen_domctl_claim_memory      claim_memory;
         uint8_t                             pad[128];
     } u;
 };
