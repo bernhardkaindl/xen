@@ -1278,6 +1278,7 @@ struct xen_domctl_get_domain_state {
 
 /*
  * Used to pass an array of claims to domain_set_outstanding_pages().
+ * Also used in the API of XEN_DOMCTL_claim_memory.
  */
 struct xen_memory_claim {
     uint64_aligned_t pages; /* Number of pages to claim */
@@ -1294,7 +1295,11 @@ DEFINE_XEN_GUEST_HANDLE(memory_claim_t);
  *
  * Claim memory for a guest domain. The claim reserves memory against
  * concurrent allocations until the domain is populated with pages; it does not
- * pre-allocate memory. You can pass one claim like to XENMEM_claim_pages.
+ * pre-allocate memory. It supports new multi-node NUMA claims, but
+ * also global claims for backward compatibility. When claiming memory on NUMA
+ * nodes, the semantics are based on global claims similar to those of
+ * XENMEM_claim_pages, but with the ability to specify the target NUMA node
+ * for each claim. For more details, see the guest-guide documentation.
  */
 struct xen_domctl_claim_memory {
     /* IN: Array of struct xen_memory_claim */
@@ -1304,7 +1309,7 @@ struct xen_domctl_claim_memory {
     uint32_t pad;  /* Explicit padding: Reserved, initialize to 0 on input */
 };
 /* Maximum number of claims array elements API functions must support */
-#define XEN_DOMCTL_CLAIM_MEMORY_MAX_CLAIMS 1
+#define XEN_DOMCTL_CLAIM_MEMORY_MAX_CLAIMS      65U
 
 struct xen_domctl {
 /* Stable domctl ops: interface_version is required to be 0.  */
