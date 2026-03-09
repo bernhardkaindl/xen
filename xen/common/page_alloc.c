@@ -548,10 +548,11 @@ static int release_global_claims(struct domain *d, unsigned long release)
     return consumed;
 }
 
-int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
+int domain_set_outstanding_pages(struct domain *d, unsigned int nr_claims,
+                                 memory_claim_t *claims)
 {
     int ret = -ENOMEM;
-    unsigned long claim, avail_pages;
+    unsigned long claim, avail_pages, pages = claims[0].pages;
 
     /*
      * Two locks are needed here:
@@ -561,6 +562,19 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
      */
     nrspin_lock(&d->page_alloc_lock);
     spin_lock(&heap_lock);
+
+    if ( claims[0].node != XEN_DOMCTL_CLAIM_MEMORY_LEGACY )
+    {
+        ret = -EOPNOTSUPP;
+        goto out;
+    }
+
+    /* Legacy XEN_DOMCTL_CLAIM_MEMORY_LEGACY claim with nr_claims == 1 */
+    if ( nr_claims > 1 )
+    {
+        ret = -E2BIG;
+        goto out;
+    }
 
     /* pages==0 means "unset" the claim. */
     if ( pages == 0 )
