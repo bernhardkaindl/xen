@@ -518,6 +518,23 @@ unsigned long domain_adjust_tot_pages(struct domain *d, long pages)
     return d->tot_pages;
 }
 
+/* Release outstanding claims on the domain and the host */
+static int release_global_claims(struct domain *d, unsigned long release)
+{
+    unsigned long consumed;
+
+    ASSERT(spin_is_locked(&heap_lock));
+    /*
+     * If the allocation was larger than the claims, do not release beyond it.
+     * Use min_t over + 0UL for clarity to make the comparison type explicit.
+     */
+    consumed = min_t(unsigned long, release, d->outstanding_pages);
+    ASSERT(consumed <= outstanding_claims);
+    outstanding_claims -= consumed;
+    d->outstanding_pages -= consumed;
+    return consumed;
+}
+
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 {
     int ret = -ENOMEM;
@@ -535,8 +552,7 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
     /* pages==0 means "unset" the claim. */
     if ( pages == 0 )
     {
-        outstanding_claims -= d->outstanding_pages;
-        d->outstanding_pages = 0;
+        release_global_claims(d, d->outstanding_pages);
         ret = 0;
         goto out;
     }
@@ -577,6 +593,12 @@ out:
     spin_unlock(&heap_lock);
     nrspin_unlock(&d->page_alloc_lock);
     return ret;
+}
+
+static void release_claims(struct domain *d, unsigned long allocation)
+{
+    ASSERT(spin_is_locked(&heap_lock));
+    release_global_claims(d, allocation);
 }
 
 #ifdef CONFIG_SYSCTL
@@ -905,9 +927,11 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
      */
     for ( ; ; )
     {
+        /* Ensure the target node memory and claims support the allocation */
+
         zone = zone_hi;
         do {
-            /* Check if target node can support the allocation. */
+            /* Check if this target zone on node can support the allocation. */
             if ( !avail[node] || (avail[node][zone] < (1UL << order)) )
                 continue;
 
@@ -934,6 +958,7 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
             }
         } while ( zone-- > zone_lo ); /* careful: unsigned zone may wrap */
 
+        /* If MEMF_exact_node was passed, we may not skip to a different node */
         if ( (memflags & MEMF_exact_node) && req_node != NUMA_NO_NODE )
             return NULL;
 
@@ -1048,8 +1073,7 @@ static struct page_info *alloc_heap_pages(
     total_avail_pages -= request;
     ASSERT(total_avail_pages >= 0);
 
-    if ( d && d->outstanding_pages && !(memflags & MEMF_no_refcount) )
-    {
+    if ( d && !(memflags & MEMF_no_refcount) )
         /*
          * Adjust claims in the same locked region where total_avail_pages is
          * adjusted, not doing so would lead to a window where the amount of
@@ -1065,12 +1089,7 @@ static struct page_info *alloc_heap_pages(
          * the domain being destroyed before creation is finished.  Losing part
          * of the claim makes no difference.
          */
-        unsigned long outstanding = min(d->outstanding_pages + 0UL, request);
-
-        BUG_ON(outstanding > outstanding_claims);
-        outstanding_claims -= outstanding;
-        d->outstanding_pages -= outstanding;
-    }
+        release_claims(d, request);
 
     check_low_mem_virq();
 
