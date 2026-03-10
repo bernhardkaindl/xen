@@ -1,0 +1,43 @@
+%% SPDX-License-Identifier: CC-BY-4.0
+classDiagram
+class xen_domctl {
+    +uint32_t cmd
+    +uint32_t domain
+    +xen_domctl_claim_memory
+}
+class xen_domctl_claim_memory {
+    +memory_claim_t* claims
+    +uint32_t nr_claims
+    +uint32_t pad
+}
+class memory_claim_t {
+    +uint64_aligned_t pages
+    +uint32_t claim_type / node
+    +uint32_t pad
+}
+class xc_domain_claim_memory["xc_domain_claim_memory()"] {
+    +xc_interface* xch
+    +uint32_t domid
+    +uint32_t nr_claims
+    +memory_claim_t* claims
+}
+class global_claimss["global claims"] {
+    total_avail_pages - outstanding_claims
+    node_avail_pages[] - node_outstanding_claims[]
+}
+class claim["claim_memory"] {
+    +claim_memory(d, uinfo)
+    +domain_set_outstanding_pages()
+}
+class domain["struct domain"] {
+    +unsigned_int global_claims
+    +unsigned_int node_claims
+    +unsigned_int claims[]
+}
+xen_domctl_claim_memory o--> memory_claim_t
+xen_domctl o--> xen_domctl_claim_memory
+xc_domain_claim_memory ..> xen_domctl : calls<br> <tt>do_domctl()</tt>
+xc_domain_claim_memory ..> claim : passes <tt>memory_claim_t[claims]</tt>
+claim ..> xen_domctl_claim_memory : reads
+claim ..> domain : sets
+domain ..> global_claimss : updates outstanding claims
