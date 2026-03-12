@@ -559,13 +559,26 @@ static int run_zero_claim_memory_resets_outstanding(struct test_ctx *ctx)
 
 /*
  * CM016: Check how offlining memory interacts with claims.
- * When all free pages are claimed, offlining memory should reduce
- * the outstanding claim count and the free memory should stay at 0.
+ * When nearly all free pages are claimed, and offlining memory starts to eat
+ * into the claim, the outstanding claim count should be reduced as some
+ * claimed pages are no longer effectively claimed (since some are offline).
+ * Mathematically, the claims can never exceed the free pages, which are
+ * reduced by offlining memory after the claim is made. If Xen does not
+ * keep this invariant by reducing the effective claim when free pages are
+ * reduced beyond the claims, usable = total_avail_pages - oustanding_claims
+ * would become negative (or very large depending on if the arithmetic wraps),
+ * which without checks, could cause global claims to be ignored or else even
+ * a panic of the hypervisor due to integer overflow if a BUG_ON() checks it.
+ * The same logic applies to node-specific claims, but this test focuses on
+ * global claims for simplicity.
  */
 static int run_offline_memory_with_claims(struct test_ctx *ctx)
 {
     xc_physinfo_t physinfo;
-    unsigned long free_pages, offline_pages = 10UL, spare_pages = 9UL;
+    /* The test claims all but a few spare pages */
+    unsigned long spare_pages = 9UL;
+    /* Then it offlines more pages than the spare pages to eat into the claim */
+    unsigned long free_pages, offline_pages = spare_pages + 1;
     int debug_rc;
 
     /* Get the global free memory for sizing the claim */

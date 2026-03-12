@@ -450,7 +450,7 @@ int lib_offline_memory(struct test_ctx *ctx, uint32_t domid,
     for ( int i = nr_entries - 1; i >= 0 && offlined < nr_pages; i-- )
     {
         uint64_t start, end;
-        uint64_t backoff = 4096; /* back off on failure, start at 2MiB */
+        uint64_t backoff = 3072; /* back off on failure, start at 3MiB */
 
         if ( map[i].type != LIB_E820_RAM || !map[i].size )
             continue;
@@ -570,7 +570,7 @@ next_backoff:
                 backoff <<= 1;
 
             if ( current_mfn - start < backoff )
-                mfn = start;
+                mfn = end;
             else
                 mfn = current_mfn - backoff;
         }
