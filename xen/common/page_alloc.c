@@ -1821,6 +1821,15 @@ static bool mark_page_free(struct page_info *pg, mfn_t mfn)
         pg_offlined = true;
         break;
 
+    case PGC_state_offlined:
+        /*
+         * This happens when online_page() releases a previously offlined
+         * page back to the heap.  The page goes directly from offlined to
+         * free without passing through PGC_state_inuse.
+         */
+        pg->count_info = PGC_state_free;
+        break;
+
     default:
         printk(XENLOG_ERR
                "pg MFN %"PRI_mfn" c=%#lx o=%u v=%#lx t=%#x\n",
@@ -1844,8 +1853,11 @@ static bool mark_page_free(struct page_info *pg, mfn_t mfn)
 
 static void free_color_heap_page(struct page_info *pg, bool need_scrub);
 
-/* Free 2^@order set of pages. */
-static void free_heap_pages(
+/*
+ * Free 2^@order set of pages.  Must be called with heap_lock held.
+ * This is the inner logic shared by free_heap_pages() and online_page().
+ */
+static void _free_heap_pages(
     struct page_info *pg, unsigned int order, bool need_scrub)
 {
     unsigned long mask;
@@ -1855,8 +1867,7 @@ static void free_heap_pages(
     bool pg_offlined = false;
 
     ASSERT(order <= MAX_ORDER);
-
-    spin_lock(&heap_lock);
+    ASSERT(spin_is_locked(&heap_lock));
 
     for ( i = 0; i < (1 << order); i++ )
     {
@@ -1874,7 +1885,6 @@ static void free_heap_pages(
             ASSERT(order == 0);
 
             free_color_heap_page(pg, need_scrub);
-            spin_unlock(&heap_lock);
             return;
         }
     }
@@ -1949,7 +1959,14 @@ static void free_heap_pages(
 
     if ( pg_offlined )
         reserve_offlined_page(pg);
+}
 
+/* Free 2^@order set of pages. */
+static void free_heap_pages(
+    struct page_info *pg, unsigned int order, bool need_scrub)
+{
+    spin_lock(&heap_lock);
+    _free_heap_pages(pg, order, need_scrub);
     spin_unlock(&heap_lock);
 }
 
@@ -2154,6 +2171,16 @@ int online_page(mfn_t mfn, uint32_t *status)
         {
             page_list_del(pg, &page_offlined_list);
             *status = PG_ONLINE_ONLINED;
+            /*
+             * Free the page back to the heap while still holding heap_lock.
+             * This avoids a window where the page has PGC_state_inuse but is
+             * not on any list and has no owner, which could cause BUG_ON in
+             * alloc_heap_pages() if the page ends up in a buddy that gets
+             * allocated during that window.  _free_heap_pages() ->>
+             * mark_page_free() handles PGC_state_offlined directly.
+             */
+            _free_heap_pages(pg, 0, false);
+            break;
         }
         else if ( (y & PGC_state) == PGC_state_offlining )
         {
@@ -2169,9 +2196,6 @@ int online_page(mfn_t mfn, uint32_t *status)
     } while ( (y = cmpxchg(&pg->count_info, x, nx)) != x );
 
     spin_unlock(&heap_lock);
-
-    if ( (y & PGC_state) == PGC_state_offlined )
-        free_heap_pages(pg, 0, false);
 
     return ret;
 }
