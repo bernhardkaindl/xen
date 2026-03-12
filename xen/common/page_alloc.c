@@ -1378,15 +1378,17 @@ bool scrub_free_pages(void)
 
                 for ( i = pg->u.free.first_dirty; i < (1U << order); i++)
                 {
-                    if ( test_bit(_PGC_need_scrub, &pg[i].count_info) )
+                    /*
+                     * scrub_state prevents removal, but not state updates.
+                     * mark_page_offline() can set a page offlined at any time,
+                     * including concurrently with this loop. It uses cmpxchg
+                     * to set the offlined state bits, so we use the same
+                     * pattern as alloc_heap_pages() and populate_physmap():
+                     */
+                    if ( test_and_clear_bit(_PGC_need_scrub,
+                                            &pg[i].count_info) )
                     {
                         scrub_one_page(&pg[i], true);
-                        /*
-                         * We can modify count_info without holding heap
-                         * lock since we effectively locked this buddy by
-                         * setting its scrub_state.
-                         */
-                        pg[i].count_info &= ~PGC_need_scrub;
                         dirty_cnt++;
                         cnt += 100; /* scrubbed pages add heavier weight. */
                     }
