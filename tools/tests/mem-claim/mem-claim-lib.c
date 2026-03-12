@@ -606,7 +606,7 @@ int lib_offline_memory(struct test_ctx *ctx, uint32_t domid,
     unsigned long unexpected_statuses = 0;
     unsigned long verification_failures = 0;
     int nr_entries;
-    uint64_t mfn = 0, initial_backoff = 3072; /* initial back off on failure */
+    uint64_t mfn = 0, initial_backoff = 4096; /* initial back off on failure */
 
     lib_set_step(ctx, "%s", reason);
 
@@ -746,11 +746,7 @@ next_backoff:
                 backoff <<= 1;
 
             if ( current_mfn - start < backoff )
-            {
-                /* reduce initial backoff if we're close to the start */
-                initial_backoff /= 2;
-                mfn = end - initial_backoff;
-            }
+                break;
             else
                 mfn = current_mfn - backoff;
         }

@@ -1,7 +1,7 @@
 XEN_ROOT = $(CURDIR)/../../..
 include $(XEN_ROOT)/tools/Rules.mk
 
-TARGETS := test-mem-claim test-claim-memory
+TARGETS := test-mem-claim test-claim-memory test-offline-online
 
 LIB_OBJ := mem-claim-lib.o
 
