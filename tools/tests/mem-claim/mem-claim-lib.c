@@ -563,15 +563,15 @@ int lib_offline_memory_from_mfn(struct test_ctx *ctx, uint32_t domid,
                    " did not transition directly to offlined mark_status=0x%x"
                    " query_status=0x%x",
                    mfn, status, verify_status);
-
+#ifdef DEBUG_ONLINE_MAY_CAUSE_FREE_PAGE_RACE_PANIC
         rc = xc_mark_page_online(ctx->env->xch, mfn, mfn, &verify_status);
         if ( rc < 0 )
             lib_appendf(ctx->result->details, sizeof(ctx->result->details),
                         "\n    warning: failed to online page %" PRI_xen_pfn
                         " after unexpected offline status 0x%x: %d (%s)",
                         mfn, verify_status, errno, strerror(errno));
+#endif
     }
-
     lib_debugf(ctx,
                "after offlining from mfn domid=%u start=%" PRI_xen_pfn
                " attempted=%lu offlined=%lu mark_failures=%lu"
@@ -728,7 +728,7 @@ int lib_offline_memory(struct test_ctx *ctx, uint32_t domid,
                        " did not transition directly to offlined mark_status=0x%x"
                        " query_status=0x%x backoff=%" PRIu64,
                        current_mfn, status, verify_status, backoff);
-
+#ifdef DEBUG_ONLINE_MAY_CAUSE_FREE_PAGE_RACE_PANIC
             /* Revert unexpected states to avoid affecting later tests. */
             rc = xc_mark_page_online(ctx->env->xch, current_mfn, current_mfn,
                                      &verify_status);
@@ -737,7 +737,7 @@ int lib_offline_memory(struct test_ctx *ctx, uint32_t domid,
                             "\n    warning: failed to online page %" PRIu64
                             " after unexpected offline status 0x%x: %d (%s)",
                             current_mfn, verify_status, errno, strerror(errno));
-
+#endif
 next_backoff:
             if ( current_mfn <= start )
                 break;
