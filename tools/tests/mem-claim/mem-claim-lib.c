@@ -413,8 +413,184 @@ int lib_expect_populate_exact_failure(struct test_ctx *ctx,
     return 0;
 }
 
+int lib_get_domain_mfn(struct test_ctx *ctx, uint32_t domid, xen_pfn_t gpfn,
+                       xen_pfn_t *mfn, const char *reason)
+{
+    struct xc_domain_meminfo minfo = {0};
+
+    lib_set_step(ctx, "%s", reason);
+
+    rc = xc_map_domain_meminfo(ctx->env->xch, domid, &minfo);
+    if ( rc )
+        return lib_fail(ctx, "xc_map_domain_meminfo(domid=%u) failed", domid);
+
+    if ( gpfn >= minfo.p2m_size )
+    {
+        xc_unmap_domain_meminfo(ctx->env->xch, &minfo);
+        errno = ERANGE;
+        return lib_fail_with_errno(
+            ctx, errno,
+            "gpfn=%" PRI_xen_pfn " outside mapped p2m_size=%lu for domid=%u",
+            gpfn, minfo.p2m_size, domid);
+    }
+
+    if ( minfo.guest_width == sizeof(uint64_t) )
+        *mfn = ((const uint64_t *)minfo.p2m_table)[gpfn];
+    else
+    {
+        *mfn = ((const uint32_t *)minfo.p2m_table)[gpfn];
+#ifdef __x86_64__
+        if ( *mfn == ~0U )
+            *mfn = ~0UL;
+#endif
+    }
+
+    xc_unmap_domain_meminfo(ctx->env->xch, &minfo);
+
+    if ( *mfn == (xen_pfn_t)~0UL )
+    {
+        errno = ENOENT;
+        return lib_fail_with_errno(ctx, errno,
+                                   "gpfn=%" PRI_xen_pfn
+                                   " does not have a valid mfn mapping",
+                                   gpfn);
+    }
+
+    lib_debugf(ctx, "resolved domid=%u gpfn=%" PRI_xen_pfn " to mfn=%" PRI_xen_pfn,
+               domid, gpfn, *mfn);
+    return 0;
+}
+
 /* --- page offlining --- */
 #define LIB_E820_RAM 1U
+
+int lib_offline_memory_from_mfn(struct test_ctx *ctx, uint32_t domid,
+                                xen_pfn_t start_mfn, unsigned long nr_pages,
+                                const char *reason)
+{
+    xc_physinfo_t physinfo;
+    unsigned long free_before = 0;
+    unsigned long max_mfn = 0;
+    unsigned long offlined = 0;
+    unsigned long attempted = 0;
+    unsigned long mark_failures = 0;
+    unsigned long query_failures = 0;
+    unsigned long skipped_non_online = 0;
+    unsigned long unexpected_statuses = 0;
+    unsigned long verification_failures = 0;
+
+    lib_set_step(ctx, "%s", reason);
+
+    if ( !nr_pages )
+        return 0;
+
+    rc = xc_maximum_ram_page(ctx->env->xch, &max_mfn);
+    if ( rc )
+        return lib_fail(ctx, "xc_maximum_ram_page() failed");
+
+    if ( !lib_get_global_free_pages(ctx->env, &free_before) &&
+         !xc_physinfo(ctx->env->xch, &physinfo) )
+        lib_debugf(ctx,
+                   "before offlining from mfn domid=%u start=%" PRI_xen_pfn
+                   " global_free=%lu outstanding=%" PRIu64,
+                   domid, start_mfn, free_before, physinfo.outstanding_pages);
+
+    for ( xen_pfn_t mfn = start_mfn; mfn <= max_mfn && offlined < nr_pages; mfn++ )
+    {
+        uint32_t status;
+        uint32_t verify_status;
+
+        errno = 0;
+        rc = xc_query_page_offline_status(ctx->env->xch, mfn, mfn, &status);
+        if ( rc < 0 )
+        {
+            query_failures++;
+            lib_debugf(ctx,
+                       "query before offlining failed for mfn=%" PRI_xen_pfn
+                       ": %d (%s)",
+                       mfn, errno, strerror(errno));
+            continue;
+        }
+
+        if ( status != 0 )
+        {
+            skipped_non_online++;
+            continue;
+        }
+
+        attempted++;
+        errno = 0;
+        rc = xc_mark_page_offline(ctx->env->xch, mfn, mfn, &status);
+        if ( rc < 0 )
+        {
+            mark_failures++;
+            lib_debugf(ctx,
+                       "mark offline failed for mfn=%" PRI_xen_pfn ": %d (%s)",
+                       mfn, errno, strerror(errno));
+            continue;
+        }
+
+        errno = 0;
+        rc = xc_query_page_offline_status(ctx->env->xch, mfn, mfn,
+                                          &verify_status);
+        if ( rc < 0 )
+        {
+            query_failures++;
+            verification_failures++;
+            lib_debugf(ctx,
+                       "query after offlining failed for mfn=%" PRI_xen_pfn
+                       ": %d (%s)",
+                       mfn, errno, strerror(errno));
+            continue;
+        }
+
+        if ( verify_status & PG_OFFLINE_STATUS_OFFLINED )
+        {
+            lib_debugf(ctx,
+                       "offlined mfn=%" PRI_xen_pfn " (%lu/%lu) mark_status=0x%x"
+                       " query_status=0x%x",
+                       mfn, offlined + 1, nr_pages, status, verify_status);
+            lib_appendf(ctx->result->details, sizeof(ctx->result->details),
+                        "\n    offlined page %" PRI_xen_pfn, mfn);
+            offlined++;
+            continue;
+        }
+
+        unexpected_statuses++;
+        verification_failures++;
+        lib_debugf(ctx,
+                   "mfn=%" PRI_xen_pfn
+                   " did not transition directly to offlined mark_status=0x%x"
+                   " query_status=0x%x",
+                   mfn, status, verify_status);
+
+        rc = xc_mark_page_online(ctx->env->xch, mfn, mfn, &verify_status);
+        if ( rc < 0 )
+            lib_appendf(ctx->result->details, sizeof(ctx->result->details),
+                        "\n    warning: failed to online page %" PRI_xen_pfn
+                        " after unexpected offline status 0x%x: %d (%s)",
+                        mfn, verify_status, errno, strerror(errno));
+    }
+
+    lib_debugf(ctx,
+               "after offlining from mfn domid=%u start=%" PRI_xen_pfn
+               " attempted=%lu offlined=%lu mark_failures=%lu"
+               " query_failures=%lu skipped_non_online=%lu"
+               " verification_failures=%lu unexpected_statuses=%lu",
+               domid, start_mfn, attempted, offlined, mark_failures,
+               query_failures, skipped_non_online, verification_failures,
+               unexpected_statuses);
+
+    if ( offlined == nr_pages )
+        return 0;
+
+    errno = ENOMEM;
+    return lib_fail_with_errno(
+        ctx, errno,
+        "failed to offline %lu pages starting at mfn=%" PRI_xen_pfn
+        " for domid=%u, only offlined %lu pages",
+        nr_pages, start_mfn, domid, offlined);
+}
 
 int lib_offline_memory(struct test_ctx *ctx, uint32_t domid,
                        unsigned long nr_pages, const char *reason)
@@ -430,7 +606,7 @@ int lib_offline_memory(struct test_ctx *ctx, uint32_t domid,
     unsigned long unexpected_statuses = 0;
     unsigned long verification_failures = 0;
     int nr_entries;
-    uint64_t mfn = 0;
+    uint64_t mfn = 0, initial_backoff = 3072; /* initial back off on failure */
 
     lib_set_step(ctx, "%s", reason);
 
@@ -450,7 +626,7 @@ int lib_offline_memory(struct test_ctx *ctx, uint32_t domid,
     for ( int i = nr_entries - 1; i >= 0 && offlined < nr_pages; i-- )
     {
         uint64_t start, end;
-        uint64_t backoff = 3072; /* back off on failure, start at 3MiB */
+        uint64_t backoff = initial_backoff;
 
         if ( map[i].type != LIB_E820_RAM || !map[i].size )
             continue;
@@ -570,7 +746,11 @@ next_backoff:
                 backoff <<= 1;
 
             if ( current_mfn - start < backoff )
-                mfn = end;
+            {
+                /* reduce initial backoff if we're close to the start */
+                initial_backoff /= 2;
+                mfn = end - initial_backoff;
+            }
             else
                 mfn = current_mfn - backoff;
         }

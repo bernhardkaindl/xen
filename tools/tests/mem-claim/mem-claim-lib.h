@@ -136,8 +136,13 @@ int lib_populate_exact_node(struct test_ctx *ctx,
                             struct lib_populate_exact_args args);
 int lib_expect_populate_exact_failure(struct test_ctx *ctx,
                                       struct lib_populate_exact_args args);
+int lib_get_domain_mfn(struct test_ctx *ctx, uint32_t domid, xen_pfn_t gpfn,
+                       xen_pfn_t *mfn, const char *reason);
 int lib_offline_memory(struct test_ctx *ctx, uint32_t domid,
                        unsigned long nr_pages, const char *reason);
+int lib_offline_memory_from_mfn(struct test_ctx *ctx, uint32_t domid,
+                                xen_pfn_t start_mfn, unsigned long nr_pages,
+                                const char *reason);
 
 /* --- test runner --- */
 int lib_run_one_test(struct test_env *env, const struct runtime_config *cfg,

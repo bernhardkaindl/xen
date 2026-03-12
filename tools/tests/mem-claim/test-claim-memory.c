@@ -638,6 +638,110 @@ static int run_offline_memory_with_claims(struct test_ctx *ctx)
 }
 
 /*
+ * CM017: Check how offlining memory found from a primary-node allocation
+ * interacts with a primary-node claim.
+ *
+ * There is no API to query outstanding claims per NUMA node, so this test
+ * checks the indirect global effect instead: a claim on the primary node
+ * contributes to physinfo.outstanding_pages, and if offlining pages on that
+ * node eats into the claim, the global outstanding total must drop by the
+ * amount of the node claim that is no longer effectively backed by free pages.
+ *
+ * To find candidate MFNs on the selected node without relying on the e820 map,
+ * the test first populates a single page on the primary node, resolves the
+ * resulting GPFN to an MFN via the domain P2M, and then tries to offline
+ * subsequent MFNs starting from there.
+ */
+static int run_offline_primary_node_claims_with_mfn_lookup(struct test_ctx *ctx)
+{
+    const xen_pfn_t anchor_gpfn = 0;
+    const unsigned long spare_pages = 9UL;
+    const unsigned long offline_pages = spare_pages + 1;
+    uint64_t baseline_outstanding;
+    unsigned long free_pages, total_pages;
+    unsigned long expected_reduction;
+    xen_pfn_t anchor_mfn;
+    xen_pfn_t start_mfn;
+    int rc;
+
+    ctx->node = ctx->env->primary_node;
+
+    lib_get_node_free_pages(ctx->env, ctx->node, &free_pages, &total_pages);
+    if ( free_pages < offline_pages + 2 )
+        return lib_skip_test(ctx,
+                             "need at least %lu free pages on primary node %u,"
+                             " got %lu",
+                             offline_pages + 2, ctx->node, free_pages);
+
+    rc = lib_populate_exact_node(
+        ctx,
+        (struct lib_populate_exact_args){
+            .domid = ctx->domid,
+            .gpfn = anchor_gpfn,
+            .nr_extents = 1,
+            .order = 0,
+            .node = ctx->node,
+            .reason = "populate one page on the primary node to discover an MFN",
+        });
+    if ( rc )
+        return rc;
+
+    rc = lib_get_domain_mfn(ctx, ctx->domid, anchor_gpfn, &anchor_mfn,
+                            "resolve the populated primary-node page to an MFN");
+    if ( rc )
+        return rc;
+
+    start_mfn = anchor_mfn + 1;
+    if ( start_mfn <= anchor_mfn )
+        return lib_skip_test(ctx,
+                             "cannot scan subsequent MFNs from anchor=%" PRI_xen_pfn,
+                             anchor_mfn);
+
+    lib_get_node_free_pages(ctx->env, ctx->node, &free_pages, &total_pages);
+    if ( free_pages <= spare_pages )
+        return lib_skip_test(ctx,
+                             "need more than %lu free pages on node %u after "
+                             "anchor allocation, got %lu",
+                             spare_pages, ctx->node, free_pages);
+
+    ctx->alloc_pages = free_pages - spare_pages;
+    expected_reduction = offline_pages - spare_pages;
+
+    snprintf(ctx->result->params, sizeof(ctx->result->params),
+             "node=%u anchor_gpfn=%" PRI_xen_pfn " anchor_mfn=%" PRI_xen_pfn
+             " claim_pages=%lu node_free=%lu total_pages=%lu offline_pages=%lu",
+             ctx->node, anchor_gpfn, anchor_mfn, ctx->alloc_pages, free_pages,
+             total_pages, offline_pages);
+
+    rc = lib_get_baseline_outstanding(ctx, &baseline_outstanding);
+    if ( rc )
+        return rc;
+
+    rc = lib_claim_memory(
+        ctx, ctx->domid, 1,
+        &(memory_claim_t){.pages = ctx->alloc_pages, .node = ctx->node},
+        "make a primary-node claim for all but a few spare pages");
+    if ( rc )
+        return rc;
+
+    rc = lib_check_claim(ctx, baseline_outstanding, ctx->alloc_pages,
+                         "check primary-node claim is reflected globally");
+    if ( rc )
+        return rc;
+
+    rc = lib_offline_memory_from_mfn(
+        ctx, ctx->domid, start_mfn, offline_pages,
+        "offline subsequent pages after the discovered primary-node MFN");
+    if ( rc )
+        return rc;
+
+    return lib_check_claim(
+        ctx, baseline_outstanding,
+        ctx->alloc_pages - expected_reduction,
+        "check global outstanding after offlining into the primary-node claim");
+}
+
+/*
  * List of test cases.  The fixture iterates over this list to run tests.
  *
  * Tests are identified by their id (e.g. "CM000") and have a descriptive name
@@ -728,6 +832,11 @@ static const struct test_case test_cases[] = {
         .id = "CM016",
         .name = "offline_memory_with_claims",
         .run = run_offline_memory_with_claims,
+    },
+    {
+        .id = "CM017",
+        .name = "offline_primary_node_claims_with_mfn_lookup",
+        .run = run_offline_primary_node_claims_with_mfn_lookup,
     },
 };
 
