@@ -1,14 +1,16 @@
 XEN_ROOT = $(CURDIR)/../../..
 include $(XEN_ROOT)/tools/Rules.mk
 
-TARGET := test-mem-claim
+TARGETS := test-mem-claim test-claim-memory
+
+LIB_OBJ := mem-claim-lib.o
 
 .PHONY: all
-all: $(TARGET)
+all: $(TARGETS)
 
 .PHONY: clean
 clean:
-	$(RM) -- *.o $(TARGET) $(DEPS_RM)
+	$(RM) -- *.o $(TARGETS) $(DEPS_RM)
 
 .PHONY: distclean
 distclean: clean
@@ -17,22 +19,25 @@ distclean: clean
 .PHONY: install
 install: all
 	$(INSTALL_DIR) $(DESTDIR)$(LIBEXEC)/tests
-	$(INSTALL_PROG) $(TARGET) $(DESTDIR)$(LIBEXEC)/tests
+	$(INSTALL_PROG) $(TARGETS) $(DESTDIR)$(LIBEXEC)/tests
 
 .PHONY: uninstall
 uninstall:
-	$(RM) -- $(DESTDIR)$(LIBEXEC)/tests/$(TARGET)
+	$(RM) -- $(patsubst %,$(DESTDIR)$(LIBEXEC)/tests/%,$(TARGETS))
 
 CFLAGS += $(CFLAGS_xeninclude)
 CFLAGS += $(CFLAGS_libxenctrl)
+CFLAGS += $(CFLAGS_libxenguest)
 CFLAGS += $(APPEND_CFLAGS)
 
 LDFLAGS += $(LDLIBS_libxenctrl)
+LDFLAGS += $(LDLIBS_libxenguest)
 LDFLAGS += $(APPEND_LDFLAGS)
 
 %.o: Makefile
 
-$(TARGET): test-mem-claim.o
-	$(CC) -o $@ $< $(LDFLAGS)
+
+$(TARGETS): %: %.o $(LIB_OBJ)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 -include $(DEPS_INCLUDE)
