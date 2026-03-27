@@ -502,6 +502,9 @@ static long node_avail_pages[MAX_NUMNODES];
 static DEFINE_SPINLOCK(heap_lock);
 static long outstanding_claims; /* total outstanding claims by all domains */
 
+/* Sum of the outstanding claims of all domains on that node. */
+static long node_outstanding_claims[MAX_NUMNODES];
+
 static unsigned long avail_heap_pages(
     unsigned int zone_lo, unsigned int zone_hi, unsigned int node)
 {
@@ -552,6 +555,158 @@ static unsigned long release_global_claims(struct domain *d,
     return consumed;
 }
 
+#ifdef CONFIG_NUMA
+/* Release outstanding claims on a specific node */
+static unsigned long release_node_claim(struct domain *d, nodeid_t node,
+                                        unsigned long release)
+{
+    unsigned long consumed = 0;
+
+    ASSERT(spin_is_locked(&heap_lock));
+
+    /* If the allocation was larger than the claims, do not release beyond it */
+    if ( d->claims[node] ) /* Release the claims for this node */
+    {
+        /* Use min_t for clarity to make the comparison type explicit */
+        consumed = min_t(unsigned long, release, d->claims[node]);
+        d->claims[node] -= consumed;
+
+        ASSERT(consumed <= outstanding_claims);
+        outstanding_claims -= consumed;
+
+        ASSERT(consumed <= node_outstanding_claims[node]);
+        node_outstanding_claims[node] -= consumed;
+
+        ASSERT(consumed <= d->node_claims);
+        d->node_claims -= consumed;
+    }
+    return consumed;
+}
+
+/* Release all outstanding claims on all online nodes */
+static void unset_node_claims(struct domain *d)
+{
+    nodeid_t node;
+
+    for_each_online_node ( node )
+    {
+        release_node_claim(d, node, d->claims[node]);
+    }
+    ASSERT(d->node_claims == 0);
+}
+
+/* Validate a claim set and install it if valid. */
+int domain_install_claim_set(struct domain *d, unsigned int nr_claims,
+                             memory_claim_t *claim_set)
+{
+    nodemask_t nodes;
+    uint32_t target;
+    uint64_t pages, total, tot, max, node_claims = 0, global_claims = 0;
+    bool global_target_seen = false;
+    int ret = -EINVAL;
+
+    nrspin_lock(&d->page_alloc_lock);
+    spin_lock(&heap_lock);
+
+    /*
+     * Phase 1: Check and process the individual claim entries.
+     * Result: Extracted global claims and the sum of the node-local claims.
+     */
+    nodes_clear(nodes);
+    for ( int i = 0; i < nr_claims; i++ )
+    {
+        target = claim_set[i].target;
+        pages = claim_set[i].pages;
+        if ( claim_set[i].pad ) /* Check before handling global claims */
+            goto out;
+
+        if ( target == XEN_DOMCTL_CLAIM_MEMORY_GLOBAL )
+        {
+            if ( global_target_seen ) /* Only one global target allowed */
+                goto out;
+
+            global_claims = pages; /* Will be checked with the total claims */
+            global_target_seen = true;
+            continue;
+        }
+
+        if ( target >= MAX_NUMNODES || !node_online(target) )
+        {
+            ret = -ENOENT; /* Node not valid or not online */
+            goto out;
+        }
+        if ( nodemask_test(target, &nodes) ||  /* Duplicate node in claim set */
+             pages > ((typeof(d->node_claims))-1) - node_claims ) /* overflow */
+            goto out;
+        node_set(target, nodes);
+
+        if ( pages > (uint64_t)(node_avail_pages[target] -
+                                node_outstanding_claims[target]) +
+                               d->claims[target] ) /* current claim deduction */
+        {
+            ret = -ENOMEM; /* Claim exceeds available memory on node */
+            goto out;
+        }
+        node_claims += pages; /* Will be checked with the total claims */
+    }
+
+    /*
+     * Check that the total of claims and current pages fits in d->max_pages.
+     * Subtract sequentially from max_pages instead of adding the claims:
+     * each subtraction is safe because the prior comparison guarantees
+     * the subtrahend doesn't exceed the remaining budget. This avoids
+     * overflow regardless of the type of d->max_pages.
+     */
+    max = d->max_pages;
+    tot = domain_tot_pages(d);
+    if ( global_claims > max || node_claims > max - global_claims ||
+         tot > max - global_claims - node_claims )
+        goto out; /* claims + domain_tot_pages exceeds max_pages: EINVAL */
+
+    /* Safe: each addend is <= d->max_pages after the above checks. */
+    total = global_claims + node_claims + (uint64_t)domain_tot_pages(d);
+
+    /*
+     * Check sum of the claim set to fit within unclaimed + d's claimed memory.
+     * The heap invariants ensure that unclaimed + claimed memory is always
+     * <= total memory, so we don't need to check for overflow here.
+     */
+    if ( total > (uint64_t)(total_avail_pages - outstanding_claims) +
+                     d->global_claims + d->node_claims )
+    {
+        ret = -ENOMEM;
+        goto out; /* Total claim exceeds available unclaimed memory: ENOMEM */
+    }
+
+    /* Phase 3: Recall the domain's current claims */
+    release_global_claims(d, d->global_claims);
+    unset_node_claims(d);
+
+    /* Phase 4: Install claim set: Global claims and overall node claims */
+    outstanding_claims += global_claims + node_claims;
+    d->global_claims = global_claims;
+    d->node_claims = node_claims;
+
+    /* Phase 5: Install the individual node claims */
+    for ( int i = 0; i < nr_claims; i++ )
+    {
+        target = claim_set[i].target;
+        pages = claim_set[i].pages;
+        if ( target >= MAX_NUMNODES ) /* Skip non-node claim targets */
+            continue;
+
+        /* Install the node claim and update the node's total claims claims. */
+        d->claims[target] = pages;
+        node_outstanding_claims[target] += pages;
+    }
+    ret = 0;
+ out:
+    spin_unlock(&heap_lock);
+    nrspin_unlock(&d->page_alloc_lock);
+    return ret;
+}
+#endif
+
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 {
     int ret = -ENOMEM;
@@ -569,6 +724,9 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
     /* pages==0 means "unset" the claim. */
     if ( pages == 0 )
     {
+#ifdef CONFIG_NUMA
+        unset_node_claims(d);
+#endif
         release_global_claims(d, d->global_claims);
         ret = 0;
         goto out;
@@ -613,14 +771,54 @@ out:
 }
 
 /* Consume the allocation from claims on the host. */
-static void consume_allocation(struct domain *d, unsigned long allocation)
+static void consume_allocation(struct domain *d, unsigned long allocation,
+                               nodeid_t alloc_node)
 {
     unsigned long unconsumed = allocation;
 
     ASSERT(spin_is_locked(&heap_lock));
 
+#ifdef CONFIG_NUMA
+    /* Consume the allocation from the alloc_node's claim if it exists */
+    if ( d->claims[alloc_node] )
+    {
+        unconsumed -= release_node_claim(d, alloc_node, allocation);
+        if ( unconsumed == 0 )
+            return; /* The allocation is fully consumed by alloc_node claim */
+    }
+#endif
+
     /* Consume the allocation from the global claims */
     unconsumed -= release_global_claims(d, unconsumed);
+
+#ifdef CONFIG_NUMA
+    if ( unconsumed == 0 || !d->node_claims )
+        return; /* Allocation fully consumed or the domain has no claims left */
+
+    /*
+     * The domain didn't have fully sufficient claims on alloc_node, the
+     * global fallback claim didn't cover the unconsumed allocation, but
+     * as the domain still has node claims left, consume the unconsumed
+     * portion of the allocation from those claims.
+     *
+     * Otherwise, domain_tot_pages(d) + d->global_claims + d->node_claims
+     * could exceed the domain's d->max_pages limit, which would violate
+     * the intent of the claims system to cap the domain's memory usage to
+     * d->max_pages. See docs/designs/claims/consumption.rst for more details.
+     */
+    unconsumed = min(unconsumed, d->node_claims + 0UL);
+    if ( unconsumed )
+    {
+        nodeid_t node;
+
+        for_each_online_node ( node )
+        {
+            unconsumed -= release_node_claim(d, node, unconsumed);
+            if ( unconsumed == 0 )
+                break;
+        }
+    }
+#endif
 }
 
 #ifdef CONFIG_SYSCTL
@@ -919,7 +1117,10 @@ static bool claims_permit_request(const struct domain *d,
     if ( !d || (memflags & MEMF_no_refcount) )
         return false;
 
-    applicable_claims = d->global_claims;
+    if ( node == NUMA_NO_NODE )
+        applicable_claims = d->global_claims + d->node_claims;
+    else
+        applicable_claims = d->claims[node]; /* node-specific test only */
 
     return request <= unclaimed_pages + applicable_claims;
 }
@@ -974,6 +1175,10 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
     for ( ; ; )
     {
         /* Ensure the target node memory and claims support the allocation */
+        if ( !claims_permit_request(d, node_avail_pages[node],
+                                    node_outstanding_claims[node],
+                                    memflags, 1UL << order, node) )
+            goto try_next_node;
 
         zone = zone_hi;
         do {
@@ -1004,6 +1209,7 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
             }
         } while ( zone-- > zone_lo ); /* careful: unsigned zone may wrap */
 
+ try_next_node:
         /* If MEMF_exact_node was passed, we may not skip to a different node */
         if ( (memflags & MEMF_exact_node) && req_node != NUMA_NO_NODE )
             return NULL;
@@ -1135,7 +1341,7 @@ static struct page_info *alloc_heap_pages(
          * the domain being destroyed before creation is finished.  Losing part
          * of the claim makes no difference.
          */
-        consume_allocation(d, request);
+        consume_allocation(d, request, node);
 
     check_low_mem_virq();
 
@@ -1310,6 +1516,24 @@ static int reserve_offlined_page(struct page_info *head)
         long recall;
         struct domain *d;
 
+#ifdef CONFIG_NUMA
+        recall = node_outstanding_claims[node] - node_avail_pages[node];
+        if ( recall > 0 )
+            /*
+             * node_avail_pages[node] is below node_outstanding_claims[node].
+             * Release some claims on this node to keep the amount of claimed
+             * memory in line with the amount of available memory on this node.
+             */
+            for_each_domain ( d )
+            {
+                if ( d->claims[node] )
+                {
+                    recall -= release_node_claim(d, node, recall);
+                    if ( recall <= 0 )
+                        break;
+                }
+            }
+#endif
         recall = outstanding_claims - total_avail_pages;
         if ( recall > 0 )
             /*

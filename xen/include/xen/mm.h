@@ -69,6 +69,7 @@
 #include <xen/list.h>
 #include <xen/spinlock.h>
 #include <xen/perfc.h>
+#include <public/domctl.h>
 #include <public/memory.h>
 
 struct page_info;
@@ -131,6 +132,8 @@ int populate_pt_range(unsigned long virt, unsigned long nr_mfns);
 /* Claim handling */
 unsigned long __must_check domain_adjust_tot_pages(struct domain *d,
     long pages);
+int domain_install_claim_set(struct domain *d, unsigned int nr_claims,
+                             memory_claim_t *claims);
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages);
 void get_outstanding_claims(uint64_t *free_pages, uint64_t *outstanding_pages);
 
