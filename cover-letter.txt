@@ -1,0 +1,107 @@
+Subject: [PATCH v5 0/9] xen: Add NUMA-aware claim sets for domains
+
+Introduction
+------------
+
+Dear Reviewers,
+
+Thank you for your feedback on the previous series. This update builds
+on that feedback to support installing multi-node claim sets atomically.
+
+The patch structure has been revamped, and the implementation has been
+improved based on your suggestions.
+
+Until now, this series only implemented designating a single NUMA node
+as the claim target of a domain.
+
+The series starts with detailed design documentation as a basis for any
+questions you may have. It is meant to introduce the concepts of the
+design and should be best seen as a handbook for the review, rather
+than as a final specification.
+
+It is followed by three small patches from v4, improved and split based
+on your suggestions, plus a new fix related to offlining pages in the
+presence of claims.
+
+The next commit splits d->outstanding_pages into two variables, one for
+global claims of the domain, and one for node claims (no functional change).
+
+This is followed by the implementation of multi-node claims, the OCaml
+bindings for it, and a comprehensive low-level test suite. The series
+also passes our high-level regression test suites.
+
+Patch Summary
+-------------
+
+The series contains the following patches:
+
+1. docs/design:      Add design documentation for NUMA-aware claim sets
+2. xen/page_alloc:   Extract releasing global claims into a function
+3. xen/page_alloc:   Recall global claims if needed when offlining pages
+4. xen/page_alloc:   Fix to add unclaimed pages when allocating with claims
+5. xen/page_alloc:   Optimize getting per-NUMA-node free page counts
+6. xen/page_alloc:   Split d->outstanding_pages: global and per-node claims
+7. xen, tools:       Introduce NUMA-aware multi-node claim sets
+8. tools/ocaml/libs: Add the OCaml binding for xc_domain_claim_memory()
+9. tools/tests:      Add low-level tests for NUMA-aware multi-node claim sets
+
+Review
+------
+
+Given the significant changes in this series to support multi-node claim sets,
+I recommend reviewing it on its own rather than incrementally.
+
+Design documentation
+--------------------
+
+The rendered design documentation is also available here to assist you:
+https://bernhardk-xen-review.readthedocs.io/node-claims-v5/designs/claims/
+
+You can also render and view it locally:
+
+./configure && python -m venv .sphinx-docs && source .sphinx-docs/bin/activate
+pip install sphinx-rtd-theme sphinxcontrib-mermaid && make -C docs sphinx-html
+xdg-open docs/sphinx/html/index.html # or:
+(cd docs/sphinx/html;python -m http.server)
+http://localhost:8000/designs/claims/
+
+Incorporated Feedback
+---------------------
+
+I incorporated many suggestions from the review process:
+
+For the refactoring patches:
+
+ - Retained Roger's original comment
+ - Removed references to other commits
+ - Removed the accessor macros
+ - Reverted changes to unsigned long types
+ - Fixed function formatting, ASSERT placement, and comment style
+
+For the claims design, hypercall APIs, and documentation:
+
+ - Added deprecation notices for the XENMEM_claim_pages hypercall
+ - Added releasing the OCaml runtime lock in the OCaml binding
+
+Acknowledgments
+---------------
+
+- Alejandro Vallejo for initiating the series.
+- Jan Beulich for reviews that led to many improvements.
+- Andrew Cooper for reviewing and XenServer 9 preview integration.
+- Roger Pau Monné for several improvements, some of which merged in master.
+- Marcus Granado and Edwin Török for their contributions to enhancing
+  the domain builder, providing additional guidance, debugging, and testing.
+
+Although these acknowledgments relate primarily to the earlier single-node
+work, this extension to multi-node claim sets would not have been possible
+without them.
+
+This series would not be where it is today without your help.
+
+Thank you again for your review. I hope these changes address your feedback
+and improve the quality of the series. I look forward to your feedback and
+am happy to provide further clarification if needed.
+
+Best regards,
+Bernhard Kaindl
