@@ -6,6 +6,7 @@ Hypervisor documentation
 .. toctree::
    :maxdepth: 2
 
+   ../designs/index
    code-coverage
 
    x86/index
