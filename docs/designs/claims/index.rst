@@ -5,7 +5,7 @@ NUMA-aware Claim Sets
 
 Design and implementation of NUMA-aware claim sets.
 
-Status: Implemented and ready for use.
+Status: Implemented and tested using tests in tools/tests/mem-claim
 
 .. toctree:: :caption: Contents
    :maxdepth: 2
