@@ -61,7 +61,20 @@ needs_sphinx = '1.4'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = []
+extensions = [
+    "sphinxcontrib.mermaid",
+    "sphinx.ext.autosectionlabel",
+]
+
+# Extension options
+
+# sphinxcontrib.mermaid
+mermaid_init_js = """
+mermaid.initialize({ startOnLoad: true });
+"""
+
+# sphinx.ext.autosectionlabel
+autosectionlabel_prefix_document = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
