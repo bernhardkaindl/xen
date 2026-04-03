@@ -218,6 +218,7 @@ class domain2
 # XEN_DOMCTL_scheduler_op with XEN_DOMCTL_SCHEDOP_putinfo
     setscheduler
 # XENMEM_claim_pages
+# XEN_DOMCTL_claim_memory
     setclaim
 # XEN_DOMCTL_cacheflush
     cacheflush

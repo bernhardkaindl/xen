@@ -1276,6 +1276,36 @@ struct xen_domctl_get_domain_state {
     uint64_t unique_id;      /* Unique domain identifier. */
 };
 
+struct xen_memory_claim {
+    uint64_aligned_t pages; /* Number of pages to claim */
+    uint32_t target; /* Node and/or claim type like legacy or a global claim */
+    uint32_t pad;    /* Explicit padding: Reserved, initialize to 0 on input */
+};
+typedef struct xen_memory_claim memory_claim_t;
+DEFINE_XEN_GUEST_HANDLE(memory_claim_t);
+
+/* Special claim targets for the target field of memory_claim_t */
+#define XEN_DOMCTL_CLAIM_MEMORY_LEGACY 0x40000000U /* No node, legacy claim */
+#define XEN_DOMCTL_CLAIM_MEMORY_GLOBAL 0x80000000U /* No node, global claim */
+
+/*
+ * XEN_DOMCTL_claim_memory
+ *
+ * Claim memory for a guest domain. It sets aside an amount of memory
+ * (it is not pre-allocated) for the purpose of satisfying future memory
+ * allocation requests for building the guest's physical address space.
+ * Memory can be claimed on a set of nodes, or globally (without node
+ * affinity), or with legacy behavior. The set of claims is a claim set. See
+ * docs/guest-guide/dom/DOMCTL_claim_memory.rsti and docs/designs/claims/.
+ */
+struct xen_domctl_claim_memory {
+    /* IN: Array of struct xen_memory_claim */
+    XEN_GUEST_HANDLE_64(memory_claim_t) claims;
+    /* IN: Number of claims in the claims array handle. */
+    uint32_t nr_claims;
+    uint32_t pad;  /* Explicit padding: Reserved, initialize to 0 on input */
+};
+
 struct xen_domctl {
 /* Stable domctl ops: interface_version is required to be 0.  */
     uint32_t cmd;
@@ -1368,6 +1398,7 @@ struct xen_domctl {
 #define XEN_DOMCTL_gsi_permission                88
 #define XEN_DOMCTL_set_llc_colors                89
 #define XEN_DOMCTL_get_domain_state              90 /* stable interface */
+#define XEN_DOMCTL_claim_memory                  91
 #define XEN_DOMCTL_gdbsx_guestmemio            1000
 #define XEN_DOMCTL_gdbsx_pausevcpu             1001
 #define XEN_DOMCTL_gdbsx_unpausevcpu           1002
@@ -1436,6 +1467,7 @@ struct xen_domctl {
 #endif
         struct xen_domctl_set_llc_colors    set_llc_colors;
         struct xen_domctl_get_domain_state  get_domain_state;
+        struct xen_domctl_claim_memory      claim_memory;
         uint8_t                             pad[128];
     } u;
 };

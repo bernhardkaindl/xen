@@ -51,6 +51,51 @@ static int xenctl_bitmap_to_nodemask(nodemask_t *nodemask,
                                    MAX_NUMNODES);
 }
 
+/* Claim memory for a domain (or if a claim exists, release the claim) */
+static int claim_memory(struct domain *d,
+    const struct xen_domctl_claim_memory *uinfo)
+{
+    memory_claim_t *claims;
+    int rc = -EFAULT;
+
+    /* alloc_color_heap_page() does not handle claims, reject LLC coloring. */
+    if ( llc_coloring_enabled )
+        return -EOPNOTSUPP;
+
+    if ( !uinfo->nr_claims || uinfo->pad )
+        return -EINVAL;
+
+    /*
+     * Protected by domctl_lock: If the domain is dying, its claims release
+     * is in the past. Reject new claims, else we'd leak that memory.
+     */
+    if ( d->is_dying )
+        return -ESRCH;
+
+    /* Limit the number of copied claims, actual validation happens later */
+    if ( uinfo->nr_claims > MAX_NUMNODES + 1 )
+        return -E2BIG;
+
+    claims = xmalloc_array(memory_claim_t, uinfo->nr_claims);
+    if ( claims == NULL )
+        return -ENOMEM;
+
+    if ( copy_from_guest(claims, uinfo->claims, uinfo->nr_claims) )
+        goto out;
+
+    rc = -EINVAL; /* Default error code for invalid claim args */
+    if ( claims[0].target == XEN_DOMCTL_CLAIM_MEMORY_LEGACY &&
+         uinfo->nr_claims == 1 )
+        /* Implement installing a legacy claim for backwards compatibility */
+        rc = domain_set_outstanding_pages(d, claims[0].pages);
+    else
+        /* domain_install_claim_set() does full input validation */
+        rc = domain_install_claim_set(d, uinfo->nr_claims, claims);
+ out:
+    xfree(claims);
+    return rc;
+}
+
 void getdomaininfo(struct domain *d, struct xen_domctl_getdomaininfo *info)
 {
     struct vcpu *v;
@@ -863,6 +908,15 @@ long do_domctl(XEN_GUEST_HANDLE_PARAM(xen_domctl_t) u_domctl)
         ret = get_domain_state(&op->u.get_domain_state, d, &op->domain);
         if ( !ret )
             copyback = true;
+        break;
+
+    case XEN_DOMCTL_claim_memory:
+        /* Use the same XSM hook as XENMEM_claim_pages */
+        ret = xsm_claim_pages(XSM_PRIV, d);
+        if ( ret )
+            break;
+
+        ret = claim_memory(d, &op->u.claim_memory);
         break;
 
     default:
