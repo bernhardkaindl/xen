@@ -365,10 +365,13 @@ static void test_unaligned_order_one_buddy(unsigned int start_mfn)
      * the offlined page from it.
      */
     ASSERT(page_list_empty(&heap(node, zone, order2)));
+    /*
+     * The order-1 heap should also be empty because the middle pages are
+     * not aligned to an order-1 boundary and should not be merged.
+     */
+    ASSERT(page_list_empty(&heap(node, zone, order1)));
 
     /*
-     * BUG:
-     *
      * The surviving middle pages should NOT be merged into one order-1 buddy
      * in this case as they are not aligned to an order-1 boundary.
      *
@@ -380,29 +383,11 @@ static void test_unaligned_order_one_buddy(unsigned int start_mfn)
      * be merged into any higher-order buddy because they would not be
      * naturally aligned to their size.
      *
-     * But due to a missing check in the original code, such middle survivors
-     * **are** merged into an order-1 buddy which is not aligned to its size.
-     *
-     * Unaligned buddies break the Xen's (and in general, any buddy
-     * allocator's) fundamental invariant and can cause heap corruption
-     * and crashes down the line when the allocator attempts to merge
-     * and split such unaligned buddies in future operations.
-     *
-     * One of the observable consequences of this bug is that the heap
-     * corruption can cause actively used pages to be mistakenly merged
-     * into the free list as if they were free, and then later when the
-     * allocator tries to allocate those pages, it can cause a host crash
-     * when get_free_buddy() returns such used page to alloc_heap_pages()
-     * which checks the use count.
+     * pages[1] and pages[2] are the two unmerged order-0 middle survivors
      */
-    bugs_encountered++;
-    ASSERT_LIST_EQUAL(&heap(node, zone, order1), &pages[1]);
-    ASSERT(PFN_ORDER(&pages[1]) == 1);
-
-    /* The head fragment is order-0; the tail pair survives as order-1. */
-
-    ASSERT(PFN_ORDER(&pages[1]) == 1);
-    ASSERT(PFN_ORDER(&pages[3]) == 0);
+    ASSERT_LIST_EQUAL(&heap(node, zone, order0), &pages[1], &pages[2]);
+    ASSERT(PFN_ORDER(&pages[1]) == 0);
+    ASSERT(PFN_ORDER(&pages[2]) == 0);
 
     /* Checks for first_dirty propagation */
 
@@ -412,15 +397,13 @@ static void test_unaligned_order_one_buddy(unsigned int start_mfn)
     /*
      * Before reserve_offlined_page(), the order-2 chunk had first_dirty=2
      * which means that the page at index 2 was the first dirty page in the
-     * chunk.
-     *
-     * As a result of the unaligned merge, it is now the tail page in its
-     * new unaligned order-1 buddy.
+     * chunk. After the split into four order-0 pages, this 2nd page has
+     * no dirty tail anymore.
      */
-    ASSERT(pages[1].u.free.first_dirty == 1);
+    ASSERT(pages[1].u.free.first_dirty == INVALID_DIRTY_IDX);
 
-    /* As the tail page in the order-1 buddy it is not marked dirty itself. */
-    ASSERT(pages[2].u.free.first_dirty == INVALID_DIRTY_IDX);
+    /* This page was the first dirty page in the original order-2 chunk. */
+    ASSERT(pages[2].u.free.first_dirty == 0);
 
     /* The 2nd offlined page should have invalid first_dirty */
     ASSERT(pages[3].u.free.first_dirty == INVALID_DIRTY_IDX);
