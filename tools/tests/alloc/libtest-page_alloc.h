@@ -31,28 +31,7 @@ static void print_and_assert_offlined_page(struct page_info *pos)
      * offlined as standalone pages.  Higher-order pages on the offline lists
      * are not supported by reserve_offlined_page() and online_page().
      */
-    if ( PFN_ORDER(pos) != 0 )
-    {
-        printf("ERROR: offlined page at MFN %lu has order %u but expected 0\n",
-               page_to_mfn(pos), PFN_ORDER(pos));
-        /*
-         * Possible CRITICAL BUG in reserve_offlined_page():
-         *
-         * The initial implementation of reserve_offlined_page()
-         * has a bug where when offlining the head of a buddy,
-         * it does not update the order of the page to 0.
-         *
-         * While this may not cause functional issues as long as the
-         * offlined page stays offline, page_online() forwards the
-         * page to heap as well again without checking its order.
-         *
-         * This could cause heap corruption and crashes down the line
-         * when the allocator attempts to merge, split and allocate
-         * such pages.
-         */
-        bugs_encountered++;
-    }
-    /* FIXME: Fix this bug and enable: ASSERT(PFN_ORDER(pos) == 0); */
+    ASSERT(PFN_ORDER(pos) == 0);
 
     /*
      * Assert that the first_dirty of offlined pages don't index a tail

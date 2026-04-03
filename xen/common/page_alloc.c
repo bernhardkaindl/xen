@@ -1250,6 +1250,15 @@ static int reserve_offlined_page(struct page_info *head)
         total_avail_pages--;
         ASSERT(total_avail_pages >= 0);
 
+        /*
+         * If the offlined page was the head of the old buddy, we removed it
+         * from the buddy list and updated it's first_dirty like we would
+         * would have done removed any other page. Now, we als have to
+         * update its order to be 0, as it is now a standalone page.
+         */
+        if ( cur_head == head && head_order != 0 )
+            PFN_ORDER(cur_head) = 0;
+
         page_list_add_tail(cur_head,
                            test_bit(_PGC_broken, &cur_head->count_info) ?
                            &page_broken_list : &page_offlined_list);
