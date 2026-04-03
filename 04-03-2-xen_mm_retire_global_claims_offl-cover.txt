@@ -1,0 +1,72 @@
+xen/mm: Refactor and improve global memory claim accounting
+
+This series addresses inconsistencies in global memory claim accounting
+during page offlining and refactors the retirement mechanism to support
+future NUMA-aware claim sets.
+
+Motivation:
+1. Ensure that total available pages never drop below outstanding global
+   claims when pages are being offlined.
+2. Centralise the logic for retiring claims, providing a robust
+   foundation for extending claim accounting to NUMA nodes.
+
+Retire global claims if needed when offlining pages
+
+When free pages are moved directly to the offline list, it is possible
+for total_avail_pages to slip below outstanding_claims.
+
+- reserve_offlined_page did not check whether it reduced total_avail_pages
+  below outstanding_claims.
+
+This can create an inconsistent state where more memory is claimed than
+is actually available. That inconsistency breaks code such as:
+
+    unsigned long avail_pages;         // unsigned!
+    ...
+    avail_pages = total_avail_pages;
+    avail_pages -= outstanding_claims; // unsigned underflow here
+    if ( claim > avail_pages )         // claim is compared to a huge number
+        goto out;
+
+Add the missing check to reserve_offlined_page and retire outstanding
+claims if this invariant would be violated: some claims of domains must
+be retired to uphold claim accounting consistency.
+
+Refactor retiring claims
+
+This patch refactors how memory claims are retired throughout the
+hypervisor. Currently, claim reduction is performed via manual
+subtraction in various parts of page_alloc.c.
+
+By introducing claims_retire_global, we provide a single entry point for
+reducing both domain-specific and global claims. This refactoring:
+
+- Centralises accounting logic, improving maintainability.
+- Ensures atomicity via heap_lock assertions.
+- Provides a structured way to handle claim retirement during page
+  allocation.
+- Lays the groundwork for future enhancements that will extend claim
+  accounting to be NUMA-aware for node-specific claims.
+
+History:
+1. The fix to maintain the invariant in reserve_offlined_page is new.
+2. The refactor to extract claim management is based on NUMA claims v4
+   1/10: [v4,01/10] xen/page_alloc: Extract code for consuming claims
+   into inline function
+
+The reviews by Jan and Roger are applied:
+- https://lists.xenproject.org/archives/html/xen-devel/2026-03/msg00143.html
+
+Full review thread (the patch is at the end):
+- https://patchwork.kernel.org/project/xen-devel/patch/7dd887bc26830d6c50e5bc2606391963e65285a1.1772098423.git.bernhard.kaindl@citrix.com/
+
+Changes compared to claims v4:
+1. Minimised changes; easier to review than comparing directly to v4.
+2. All feedback from the review has been applied.
+3. claims_retire_global now returns the number of claims retired from a
+   domain, which is needed for the offlining fix.
+4. claims_retire_allocation receives that value; the new claim-sets
+   series will use it when the function is extended to retire NUMA
+   claims as well (you may remove that note during merge if preferred).
+5. Improved function and variable names for clarity.
+6. Reordered functions for better locality and readability.
