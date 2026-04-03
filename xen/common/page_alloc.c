@@ -1195,12 +1195,12 @@ static int reserve_offlined_page(struct page_info *head)
         next_order = cur_order = 0;
 
         /* Attempt to grow the order (size) of the buddy as much as possible. */
-        while ( cur_order < head_order )
+        while ( cur_order <= head_order )
         {
             next_order = cur_order + 1;
 
             /* Do not grow to next_order if it would go beyond the buddy. */
-            if ( (cur_head + (1 << next_order)) >= (head + ( 1 << head_order)) )
+            if ( (cur_head + (1 << next_order)) > (head + ( 1 << head_order)) )
                 goto merge;
 
             /* Check if any page in the next_order range is offlined. */

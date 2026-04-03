@@ -34,7 +34,7 @@ static void print_and_assert_offlined_page(struct page_info *pos)
     if ( PFN_ORDER(pos) != 0 )
     {
         printf("ERROR: offlined page at MFN %lu has order %u but expected 0\n",
-            page_to_mfn(pos), PFN_ORDER(pos));
+               page_to_mfn(pos), PFN_ORDER(pos));
         /*
          * Possible CRITICAL BUG in reserve_offlined_page():
          *

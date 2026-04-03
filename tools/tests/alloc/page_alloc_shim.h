@@ -306,6 +306,8 @@ test_page_list_remove_head(struct page_list_head *list)
     })
 #define for_each_online_node(i) for ( (i) = 0; (i) < MAX_NUMNODES; ++(i) )
 #define for_each_cpu(i, mask)   for ( (i) = 0; (i) < 1; ++(i) )
+#define for_each_domain(_d) \
+    for ( (_d) = domain_list; (_d) != NULL; (_d) = (_d)->next_in_list )
 #define page_list_for_each_safe(pos, tmp, list)    \
     for ( (pos) = page_list_first(list),           \
           (tmp) = (pos) ? (pos)->list_next : NULL; \

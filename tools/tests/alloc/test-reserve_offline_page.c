@@ -73,7 +73,7 @@ static void test_single_offlined_page(int mfn)
     if ( total_avail_pages < outstanding_claims )
     {
         printf("ERROR: total_avail_pages %ld < outstanding_claims %ld\n",
-                    total_avail_pages, outstanding_claims);
+               total_avail_pages, outstanding_claims);
         bugs_encountered++;
     }
     /* ASSERT(outstanding_claims == 1); */
@@ -276,40 +276,34 @@ static void test_mixed_order_two_buddy(unsigned int start_mfn)
      * The surviving tail pair should have been merged into one order-1 buddy
      * covering pages[2] and pages[3] (the offlined page 1 causes the split).
      *
-     * BUG:
-     *
-     * The original code fails to merge the surviving tail pair into
-     * an order-1 buddy because of an off-by-one error in the check
-     * for whether the next_order would go beyond the buddy boundary.
-     *
-     * The check should use '>' to allow the merge when the next_order end
-     * is exactly at the buddy boundary, but the original code uses '>='
-     * which prevents the merge in that case.
-     *
-     * As a result, the surviving tail pair remains as two separate order-0
-     * pages instead of being merged into an order -1 buddy. This test is
-     * designed to catch that bug by verifying the final list state and
-     * orders of the surviving pages.
-     *
-     * This follows the Test-Driven Development (TDD) approach where the test
-     * is written to expose the bug before the fix is implemented.
+     * In the order-0 free list, the surviving head fragment (pages[0])
+     * should appear first, followed by the pre-existing order-0 page,
+     * preserving the original sequence of discovered free pages.
      */
-    bugs_encountered++;
-    ASSERT_LIST_EQUAL(&heap(node, zone, order0), &pages[2], &pages[0],
-                      &existing_order0, &pages[3]);
+    ASSERT_LIST_EQUAL(&heap(node, zone, order0), &pages[0], &existing_order0);
+
+    /* The head fragment is order-0; the tail pair survives as order-1. */
     ASSERT(PFN_ORDER(&pages[0]) == 0);
     ASSERT(PFN_ORDER(&pages[1]) == 0);
-    ASSERT(PFN_ORDER(&pages[2]) == 0);
-    ASSERT(PFN_ORDER(&pages[3]) == 0);
+    /* The surviving tail pair is merged into one order-1 buddy */
+    ASSERT(PFN_ORDER(&pages[2]) == 1);
 
     /* Checks for first_dirty propagation */
 
     ASSERT(pages[0].u.free.first_dirty == INVALID_DIRTY_IDX);
     ASSERT(pages[1].u.free.first_dirty == INVALID_DIRTY_IDX);
-    ASSERT(pages[2].u.free.first_dirty == INVALID_DIRTY_IDX);
 
-    /* This is still the dirty page, and as it is split, it has first_dirty=0 */
-    ASSERT(pages[3].u.free.first_dirty == 0);
+    /*
+     * Before reserve_offlined_page(), the order-2 chunk had first_dirty=3
+     * which means that the page at index 3 was the first dirty page in the
+     * chunk. After the split, it is the buddy of pages[2] at index 1 of it:
+     */
+
+    /* pages[2] is the merged order-1 buddy covering the original dirty tail. */
+    ASSERT(pages[2].u.free.first_dirty == 1);
+
+    /* The original offlined page should have invalid first_dirty */
+    ASSERT(pages[3].u.free.first_dirty == INVALID_DIRTY_IDX);
 }
 
 /*
