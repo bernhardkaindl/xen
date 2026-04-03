@@ -1,0 +1,53 @@
+xen: Introduce NUMA-aware claim sets for domains
+
+Hi all,
+
+This series extends Xen's memory claim handling to support claim sets
+spanning multiple NUMA nodes.
+
+Earlier review raised the concern that claims would need to evolve from a
+single claim into a multi-node model. Roger Pau Monné described the core
+requirement well:
+
+  >  Ideally, we would need to introduce a new hypercall that allows
+  >  making claims from multiple nodes in a single locked region,
+  >  as to ensure success or failure in an atomic way.
+
+      -- Roger Pau Monné
+
+This series implements that model.
+
+A claim set can contain multiple node-specific claims and an optional
+global claim for memory that may come from any NUMA node. The new domctl
+installs the full claim set atomically, and the allocator is updated so
+that claim checks and claim consumption follow the new semantics.
+
+The series has been reworked substantially in response to earlier review.
+Because of that, it is likely best reviewed as a fresh series rather than
+incrementally.
+
+Patch summary:
+
+1. xen/mm: Refactor retiring claims in preparation for use in functional changes
+2. xen/mm: Claims check: Allow free pages to cover a shortfall of claims
+3. xen/mm: Optimise getting free page counts per NUMA node
+4. xen/mm: Split d->outstanding_pages to global_claims & node_claims
+5. xen/mm: Introduce Claim Sets for multiple NUMA nodes
+
+The design document submitted ahead of this series may also help with
+review. It explains the background, design rationale, and implementation
+details.
+
+Rendered version:
+https://bernhardk-xen-review.readthedocs.io/node-claims-v5/designs/claims/
+
+Posted version:
+https://lists.xenproject.org/archives/html/xen-devel/2026-04/msg00108.html
+
+Many thanks to everyone who contributed to the earlier work and review,
+especially Alejandro Vallejo, Jan Beulich, Andrew Cooper, Roger Pau
+Monné, Marcus Granado, and Edwin Török.
+
+Thanks for your review.
+
+Bernhard Kaindl
