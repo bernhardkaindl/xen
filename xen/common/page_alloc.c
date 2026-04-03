@@ -540,12 +540,12 @@ static unsigned long claims_retire_global(struct domain *d,
     ASSERT(spin_is_locked(&heap_lock));
 
     /* If the withdrawal is larger than the claims, don't withdraw beyond */
-    retired = min(d->outstanding_pages + 0UL, pages_to_retire);
+    retired = min(d->global_claims + 0UL, pages_to_retire);
 
     /* Assert the invariant of outstanding_claims not going negative */
     ASSERT(retired <= outstanding_claims);
     outstanding_claims -= retired;
-    d->outstanding_pages -= retired;
+    d->global_claims -= retired;
     return retired;
 }
 
@@ -557,8 +557,7 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
     /*
      * Two locks are needed here:
      *  - d->page_alloc_lock: protects accesses to d->{tot,max,extra}_pages.
-     *  - heap_lock: protects accesses to d->outstanding_pages, total_avail_pages
-     *    and outstanding_claims.
+     *  - heap_lock: Protects accesses to the claims and avail_pages state.
      */
     nrspin_lock(&d->page_alloc_lock);
     spin_lock(&heap_lock);
@@ -566,13 +565,13 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
     /* pages==0 means "unset" the claim. */
     if ( pages == 0 )
     {
-        claims_retire_global(d, d->outstanding_pages);
+        claims_retire_global(d, d->global_claims);
         ret = 0;
         goto out;
     }
 
-    /* only one active claim per domain please */
-    if ( d->outstanding_pages )
+    /* Reject updating global claims and we can't update node claims */
+    if ( d->global_claims || d->node_claims )
     {
         ret = -EINVAL;
         goto out;
@@ -599,8 +598,8 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
         goto out;
 
     /* yay, claim fits in available memory, stake the claim, success! */
-    d->outstanding_pages = claim;
-    outstanding_claims += d->outstanding_pages;
+    d->global_claims = claim;
+    outstanding_claims += claim;
     ret = 0;
 
 out:
@@ -896,7 +895,7 @@ static bool claims_permit_request(const struct domain *d,
                                   unsigned int memflags,
                                   unsigned long requested_pages)
 {
-    unsigned long unclaimed_pages;
+    unsigned long unclaimed_pages, applicable_claims;
 
     ASSERT(spin_is_locked(&heap_lock));
     ASSERT(avail_pages >= competing_claims);
@@ -919,7 +918,7 @@ static bool claims_permit_request(const struct domain *d,
      * Allow the request to proceed when combination of unclaimed pages and the
      * claims held by the domain cover the shortfall for the requested_pages.
      */
-    return requested_pages <= unclaimed_pages + d->outstanding_pages;
+    return requested_pages <= unclaimed_pages + d->global_claims;
 }
 
 static struct page_info *get_free_buddy(unsigned int zone_lo,
@@ -1067,7 +1066,7 @@ static struct page_info *alloc_heap_pages(
      * is made by a domain with sufficient unclaimed pages.
      */
     if ( !claims_permit_request(d, total_avail_pages, outstanding_claims,
-                                memflags, request) )
+                                memflags, request, NUMA_NO_NODE) )
     {
         spin_unlock(&heap_lock);
         return NULL;
@@ -1117,18 +1116,16 @@ static struct page_info *alloc_heap_pages(
     total_avail_pages -= request;
     ASSERT(total_avail_pages >= 0);
 
-    if ( d && d->outstanding_pages && !(memflags & MEMF_no_refcount) )
+    if ( d && d->global_claims && !(memflags & MEMF_no_refcount) )
     {
         /*
          * Adjust claims in the same locked region where total_avail_pages is
          * adjusted, not doing so would lead to a window where the amount of
          * free memory (avail - claimed) would be incorrect.
          *
-         * Note that by adjusting the claimed amount here it's possible for
-         * pages to fail to be assigned to the claiming domain while already
-         * having been subtracted from d->outstanding_pages.  Such claimed
-         * amount is then lost, as the pages that fail to be assigned to the
-         * domain are freed without replenishing the claim.  This is fine given
+         * Note, after retiring claims for the allocation here, assign_pages()
+         * could fail. The domain looses The retired claims as the not assigned
+         * pages are freed without replenishing the claim.  This is fine given
          * claims are only to be used during physmap population as part of
          * domain build, and any failure in assign_pages() there will result in
          * the domain being destroyed before creation is finished.  Losing part
