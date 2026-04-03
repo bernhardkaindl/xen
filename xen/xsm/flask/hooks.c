@@ -651,6 +651,7 @@ static int cf_check flask_domctl(struct domain *d, unsigned int cmd,
 
     /* These have individual XSM hooks (common/domctl.c) */
     case XEN_DOMCTL_getdomaininfo:
+    case XEN_DOMCTL_claim_memory:
     case XEN_DOMCTL_scheduler_op:
     case XEN_DOMCTL_irq_permission:
     case XEN_DOMCTL_iomem_permission:
