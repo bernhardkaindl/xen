@@ -1,0 +1,40 @@
+xen/mm: introduce NUMA-aware claim sets
+
+Hi all,
+
+This short series extends Xen's memory claim handling to support claim
+sets spanning multiple NUMA nodes, while keeping the existing single-
+claim behaviour available for compatibility.
+
+The first patch is a preparatory rename. It splits the domain's existing
+outstanding_pages accounting into separate global_claims and node_claims
+fields. This makes the accounting model easier to follow ahead of the
+functional change, and keeps the hot-path checks efficient by preserving
+aggregated claim totals.
+
+The second patch introduces a new domctl for installing a claim set in a
+single operation. A claim set may contain one global claim and multiple
+node-specific claims, allowing toolstacks to express NUMA-aware memory
+reservations atomically. The implementation includes claim validation,
+allocation-time claim protection, and claim retirement on success while
+retaining the legacy claim interface for the legacy hypercall API.
+
+Patch summary:
+
+1. xen/mm: Split d->outstanding_pages to global_claims & node_claims
+2. xen/mm: Introduce Claim Sets for multiple NUMA nodes
+
+Thanks for your review.
+
+Bernhard
+
+---
+PS:
+
+The design documentation for this feature has been submitted here:
+https://lists.xen.org/archives/html/xen-devel/2026-04/msg00108.html
+
+For convenience, the rendered design document is available here for
+the use-cases, history, rationale behind the design, components and
+claim implementation documentation referece for all involved functions:
+https://bernhard-xen.readthedocs.io/en/claim-sets-v1-design/designs/claims/
