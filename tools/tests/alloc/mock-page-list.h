@@ -325,12 +325,8 @@ static void print_and_assert_offlined_page(struct page_info *pos)
      * as standalone pages. Higher-order entries on the offline lists are not
      * supported by reserve_offlined_page() or online_page().
      */
-    if ( PFN_ORDER(pos) != 0 )
-        EXPECTED_TO_FAIL_BEGIN();
     CHECK(PFN_ORDER(pos) == 0, "All offlined pages must have order 0: "
           "page at MFN %lu has order %u", page_to_mfn(pos), PFN_ORDER(pos));
-    if ( PFN_ORDER(pos) != 0 )
-        EXPECTED_TO_FAIL_END(1);
 
     /*
      * Current code does not use first_dirty for offlined pages because it
