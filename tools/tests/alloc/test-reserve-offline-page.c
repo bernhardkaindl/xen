@@ -37,9 +37,7 @@ static void test_offline_head_page(int start_mfn)
     ASSERT(FREE_PAGES == 1);
     ASSERT(PFN_ORDER(page + 1) == 0);
 
-    EXPECTED_TO_FAIL_BEGIN();
     CHECK(PFN_ORDER(page) == 0, "Single offlined head page should be order-0");
-    EXPECTED_TO_FAIL_END(1);
 }
 
 static void test_offline_dirty_tail(int start_mfn)
