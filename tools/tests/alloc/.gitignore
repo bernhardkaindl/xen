@@ -1,0 +1,7 @@
+/test-claims_alloc_domheap
+/test-claims_installation
+/test-claims_retire_allocation
+/test-domain_set_node_claims
+/test-get_free_buddy
+/test-reserve_offline_page-numa
+/test-reserve_offline_page-uma
