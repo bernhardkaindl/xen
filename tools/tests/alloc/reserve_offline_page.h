@@ -243,20 +243,14 @@ static void test_merge_tail_pair(unsigned int start_mfn)
      * is exactly at the buddy boundary.
      */
     /* Only the existing_order0 page and page-9 are in the order-0 heap. */
-    EXPECTED_TO_FAIL_BEGIN();
     ASSERT_LIST_EQUAL(&heap(node, zone, order0), pages + 0);
-    EXPECTED_TO_FAIL_END(12);
 
     /* The merged order-1 buddy of page-2+3 should be in the order-1 heap. */
-    EXPECTED_TO_FAIL_BEGIN();
     ASSERT_LIST_EQUAL(&heap(node, zone, order1), pages + 2);
-    EXPECTED_TO_FAIL_END(3);
 
     CHECK(PFN_ORDER(pages + 0) == 0, "Former head page, now order-0");
     /* The surviving tail pair is merged into one order-1 buddy */
-    EXPECTED_TO_FAIL_BEGIN();
     CHECK(PFN_ORDER(pages + 2) == 1, "Tail pair should be merged into order-1");
-    EXPECTED_TO_FAIL_END(1);
     CHECK(PFN_ORDER(pages + 3) == 0, "page[3] should be order-0 (subpage)");
     CHECK(PFN_ORDER(pages + 1) == 0, "Offlined page should be order-0");
 
@@ -271,15 +265,12 @@ static void test_merge_tail_pair(unsigned int start_mfn)
      * which means that the page at index 3 was the first dirty page in the
      * chunk. After the split, it is the buddy of pages[2] at index 1 of it:
      */
-
-    EXPECTED_TO_FAIL_BEGIN();
     /* pages[2]+1 is the final page, which was marked dirty, it still is. */
     CHECK(pages[2].u.free.first_dirty == 1, "In tail buddy, the 2nd is dirty");
 
     /* The tail page of the merged buddy does not use first_dirty */
     CHECK(pages[3].u.free.first_dirty == INVALID_DIRTY_IDX,
           "Tail page of the merged buddy should not use first_dirty");
-    EXPECTED_TO_FAIL_END(2);
 }
 
 /*
