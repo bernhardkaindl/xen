@@ -1,0 +1,23 @@
+%% SPDX-License-Identifier: CC-BY-4.0
+sequenceDiagram
+
+participant Toolstack
+participant Xen
+participant NUMA Node memory
+
+Toolstack->>Xen: XEN_DOMCTL_createdomain
+Toolstack->>Xen: XEN_DOMCTL_max_mem(max_pages)
+
+Toolstack->>Xen: XEN_DOMCTL_claim_memory(pages, node)
+Xen->>NUMA Node memory: Claim pages on node
+Xen-->>Toolstack: Claim granted
+
+Toolstack->>Xen: XEN_DOMCTL_set_nodeaffinity(node)
+
+loop Populate domain memory
+    Toolstack->>Xen: XENMEM_populate_physmap(memflags:node)
+    Xen->>NUMA Node memory: alloc from claimed node
+end
+
+Toolstack->>Xen: XEN_DOMCTL_claim_memory(0, NO_NODE)
+Xen-->>Toolstack: Remaining claims released
