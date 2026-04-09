@@ -310,10 +310,8 @@ static void test_unaligned_order_one_buddy(int start_mfn)
      * The order-1 heap should also be empty because the middle pages are
      * not aligned to an order-1 boundary and should not be merged.
      */
-    EXPECTED_TO_FAIL_BEGIN();
     CHECK(page_list_empty(&heap(node, zone, order1)),
           "order-1 heap empty as pages aren't aligned");
-    EXPECTED_TO_FAIL_END(1);
 
     /*
      * The two middle pages must NOT be coalesced into an order-1 buddy.
@@ -328,10 +326,8 @@ static void test_unaligned_order_one_buddy(int start_mfn)
      * from an order-2 chunk, the two surviving middle pages remain as
      * separate order-0 free pages and must not be merged.
      */
-    EXPECTED_TO_FAIL_BEGIN();
     ASSERT_LIST_EQUAL(&heap(node, zone, order0), page + 1, page + 2);
     CHECK(PFN_ORDER(page + 1) == 0, "page[1] should be order-0");
-    EXPECTED_TO_FAIL_END(4);
     CHECK(PFN_ORDER(page + 2) == 0, "page[2] should be order-0");
 
     /* Checks for first_dirty propagation */
@@ -344,13 +340,11 @@ static void test_unaligned_order_one_buddy(int start_mfn)
      * which means that the page at index 2 was the first dirty page in the
      * chunk.
      */
-    EXPECTED_TO_FAIL_BEGIN();
     CHECK(page[1].u.free.first_dirty == INVALID_DIRTY_IDX,
           "page[1] clean: first_dirty invalid");
 
     CHECK(page[2].u.free.first_dirty == 0,
           "page[2] dirty: first_dirty refers to itself");
-    EXPECTED_TO_FAIL_END(2);
 
     /* The 2nd offlined page should have invalid first_dirty */
     ASSERT(page[3].u.free.first_dirty == INVALID_DIRTY_IDX);
