@@ -1216,6 +1216,11 @@ static int reserve_offlined_page(struct page_info *head)
             if ( (cur_head + (1 << next_order)) > (head + ( 1 << head_order)) )
                 goto merge;
 
+           /* Do not grow to next_order if cur_head is not aligned to it. */
+            if ( (mfn_x(page_to_mfn(cur_head)) & ((1UL << next_order) - 1)) )
+                goto merge;
+
+            /* Check if any page in the next_order range is offlined. */
             for ( i = (1 << cur_order), pg = cur_head + (1 << cur_order );
                   i < (1 << next_order);
                   i++, pg++ )
