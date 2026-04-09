@@ -57,9 +57,7 @@ static void test_single_offlined_page(int mfn)
      * If needed, reserve_offlined_page() must recall claims to ensure that
      * the invariant of `total_avail_pages >= outstanding_claims` holds.
      */
-    EXPECTED_TO_FAIL_BEGIN();
     ASSERT(TOTAL_CLAIMS <= FREE_PAGES);
-    EXPECTED_TO_FAIL_END(1);
 }
 
 /*
