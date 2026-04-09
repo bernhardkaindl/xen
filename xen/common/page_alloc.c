@@ -518,6 +518,24 @@ unsigned long domain_adjust_tot_pages(struct domain *d, long pages)
     return d->tot_pages;
 }
 
+/* Retire a portion of the global claims of a domain on global memory */
+static unsigned long claims_retire_global(struct domain *d,
+                                          unsigned long pages_to_retire)
+{
+    unsigned long retired;
+
+    ASSERT(spin_is_locked(&heap_lock));
+
+    /* If the withdrawal is larger than the claims, don't withdraw beyond */
+    retired = min(d->outstanding_pages + 0UL, pages_to_retire);
+
+    /* Assert the invariant of outstanding_claims not going negative */
+    ASSERT(retired <= outstanding_claims);
+    outstanding_claims -= retired;
+    d->outstanding_pages -= retired;
+    return retired;
+}
+
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 {
     int ret = -ENOMEM;
@@ -535,8 +553,7 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
     /* pages==0 means "unset" the claim. */
     if ( pages == 0 )
     {
-        outstanding_claims -= d->outstanding_pages;
-        d->outstanding_pages = 0;
+        claims_retire_global(d, d->outstanding_pages);
         ret = 0;
         goto out;
     }
@@ -1067,11 +1084,7 @@ static struct page_info *alloc_heap_pages(
          * the domain being destroyed before creation is finished.  Losing part
          * of the claim makes no difference.
          */
-        unsigned long outstanding = min(d->outstanding_pages + 0UL, request);
-
-        BUG_ON(outstanding > outstanding_claims);
-        outstanding_claims -= outstanding;
-        d->outstanding_pages -= outstanding;
+        claims_retire_global(d, request);
     }
 
     check_low_mem_virq();
