@@ -1,0 +1,34 @@
+commit 9247bbd201b974554cfac4d7496fb76bfa62fc07
+Author: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+Date:   Mon Apr 13 10:00:00 2026 +0200
+
+    fixup infra3 uncrust
+    
+    Signed-off-by: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+
+diff --git a/tools/tests/alloc/test-online_page.c b/tools/tests/alloc/test-online_page.c
+index 7d465ac339..71df94a6f5 100644
+--- a/tools/tests/alloc/test-online_page.c
++++ b/tools/tests/alloc/test-online_page.c
+@@ -12,8 +12,8 @@
+ static void test_online_offlined_clean_page(int start_mfn)
+ {
+     struct page_info *page   = test_pages + start_mfn;
+-    uint32_t          status = 0;
+-    int               ret;
++    uint32_t status = 0;
++    int ret;
+ 
+     /*
+      * PREPARE:
+@@ -50,8 +50,8 @@ static void test_online_offlined_clean_page(int start_mfn)
+ static void test_online_offlined_dirty_page(int start_mfn)
+ {
+     struct page_info *page   = test_pages + start_mfn;
+-    uint32_t          status = 0;
+-    int               ret;
++    uint32_t status = 0;
++    int ret;
+ 
+     /*
+      * PREPARE:

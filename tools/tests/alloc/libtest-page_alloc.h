@@ -208,7 +208,7 @@ static void init_dummy_domains(void)
 {
     nodemask_t dom_node_affinity;
     struct domain *dom;
-    int dom_id = 1;            /* Start domain IDs from 1 for clarity in logs */
+    int dom_id = 1;             /* Start domain IDs from 1 for clarity in logs */
 
     /* Provide a current vcpu/domain pair for code paths that inspect it. */
     test_current_vcpu.domain = &test_dummy_domain1;
