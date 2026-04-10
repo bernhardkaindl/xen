@@ -47,7 +47,6 @@ static void test_online_offlined_clean_page(int start_mfn)
     CHECK(page->u.free.first_dirty == INVALID_DIRTY_IDX, "first_dirty invalid");
 }
 
-
 static void test_online_offlined_dirty_page(int start_mfn)
 {
     struct page_info *page = test_pages + start_mfn;
@@ -86,10 +85,8 @@ static void test_online_offlined_dirty_page(int start_mfn)
      * PGC_need_scrub should still be set and first_dirty field should again
      * refer to the page itself to match it after being onlined again.
      */
-    EXPECTED_TO_FAIL_BEGIN();
     CHECK(page->count_info & PGC_need_scrub, "Page should still be dirty");
     CHECK(page->u.free.first_dirty == 0, "first_dirty should refer to itself");
-    EXPECTED_TO_FAIL_END(2);
 }
 
 int main(int argc, char *argv[])
@@ -102,8 +99,8 @@ int main(int argc, char *argv[])
 
     init_page_alloc_tests();
 
-    RUN_TESTCASE(test_online_offlined_clean_page, 1);
-    RUN_TESTCASE(test_online_offlined_dirty_page, 4);
+    RUN_TESTCASE(OOCP, test_online_offlined_clean_page, 1);
+    RUN_TESTCASE(OODP, test_online_offlined_dirty_page, 4);
 
     return testcase_print_summary(program_name);
 }

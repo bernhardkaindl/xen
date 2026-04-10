@@ -2236,7 +2236,7 @@ int online_page(mfn_t mfn, uint32_t *status)
     spin_unlock(&heap_lock);
 
     if ( (y & PGC_state) == PGC_state_offlined )
-        free_heap_pages(pg, 0, false);
+        free_heap_pages(pg, 0, y & PGC_need_scrub);
 
     return ret;
 }
