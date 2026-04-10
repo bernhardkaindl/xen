@@ -12,7 +12,9 @@ build:
   jobs:
     post_install:
       # Instead of needing a separate requirements.txt
-      - python -m pip install --upgrade --no-cache-dir sphinx-rtd-theme
+      - >
+        python -m pip install --upgrade --no-cache-dir sphinx-rtd-theme
+        sphinxcontrib-mermaid
 
 sphinx:
   configuration: docs/conf.py

@@ -61,7 +61,33 @@ needs_sphinx = '1.4'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = []
+extensions = ["sphinx.ext.autosectionlabel"]
+
+try:
+    import sphinxcontrib.mermaid
+except ImportError:
+    sys.stderr.write("""
+        Warning: The Sphinx 'sphinxcontrib.mermaid' extension was not found.
+        Make sure you have the extension installed to render mermaid diagrams
+        in the documentation. On Debian-based systems, you can install it with:
+        sudo apt install python3-sphinxcontrib-mermaid\n
+        In any case, after installing pipx, you can install the latest versions
+        of sphinx and the needed extras in an isolated environment with:\n
+        pipx install sphinx
+        pipx inject sphinx sphinxcontrib-mermaid sphinx-rtd-theme\n
+        """)
+else:
+    extensions.append("sphinxcontrib.mermaid")
+
+# Extension options
+
+# sphinxcontrib.mermaid
+mermaid_init_js = """
+mermaid.initialize({ startOnLoad: true });
+"""
+
+# sphinx.ext.autosectionlabel
+autosectionlabel_prefix_document = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -82,7 +108,7 @@ language = 'en'
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = [u'sphinx/output', 'Thumbs.db', '.DS_Store']
+exclude_patterns = [u'sphinx/output', 'Thumbs.db', '.DS_Store', '.sphinx']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = None
@@ -99,7 +125,11 @@ highlight_language = 'none'
 try:
     import sphinx_rtd_theme
     html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+    # The sphinx_rtd_theme package versions prior to 3.0.0 require the theme
+    # path to be added to html_theme_path, while newer are warning about it:
+    # https://sphinx-rtd-theme.readthedocs.io/en/stable/changelog.html#deprecations
+    if sphinx_rtd_theme.__version__.split('.') < ['3', '0', '0']:
+        html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 except ImportError:
     sys.stderr.write('Warning: The Sphinx \'sphinx_rtd_theme\' HTML theme was not found. Make sure you have the theme installed to produce pretty HTML output. Falling back to the default theme.\n')
 
