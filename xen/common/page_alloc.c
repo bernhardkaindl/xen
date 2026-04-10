@@ -518,6 +518,19 @@ unsigned long domain_adjust_tot_pages(struct domain *d, long pages)
     return d->tot_pages;
 }
 
+/* Deduct up to the given amount of pages from the global claims of a domain */
+static unsigned long deduct_global_claims(struct domain *d,
+                                          unsigned long reduction)
+{
+    reduction = min(reduction, d->outstanding_pages + 0UL);
+    ASSERT(reduction <= outstanding_claims);
+
+    outstanding_claims -= reduction;
+    d->outstanding_pages -= reduction;
+
+    return reduction;
+}
+
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 {
     int ret = -ENOMEM;
@@ -535,8 +548,7 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
     /* pages==0 means "unset" the claim. */
     if ( pages == 0 )
     {
-        outstanding_claims -= d->outstanding_pages;
-        d->outstanding_pages = 0;
+        deduct_global_claims(d, d->outstanding_pages);
         ret = 0;
         goto out;
     }
@@ -1067,11 +1079,7 @@ static struct page_info *alloc_heap_pages(
          * the domain being destroyed before creation is finished.  Losing part
          * of the claim makes no difference.
          */
-        unsigned long outstanding = min(d->outstanding_pages + 0UL, request);
-
-        BUG_ON(outstanding > outstanding_claims);
-        outstanding_claims -= outstanding;
-        d->outstanding_pages -= outstanding;
+        deduct_global_claims(d, request);
     }
 
     check_low_mem_virq();
