@@ -53,17 +53,18 @@ kind of development environment.
    hypervisor-guide/index
    misc/ci
 
-
 Unsorted documents
 ------------------
 
 Documents in need of some rearranging.
 
+.. The design documentation is added in the `designs` directory
+   included in the hypervisor guide now.
+   (this is a documentation comment which is not rendered)
+
 .. toctree::
    :maxdepth: 2
 
-   designs/launch/hyperlaunch
-   designs/launch/hyperlaunch-devicetree
    misc/xen-makefiles/makefiles
    misra/index
    fusa/index

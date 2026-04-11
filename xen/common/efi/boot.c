@@ -581,6 +581,31 @@ static char * __init split_string(char *s)
     return NULL;
 }
 
+static void __init pre_parse(const struct file *file)
+{
+    char *ptr = file->str, *end = ptr + file->size;
+    bool start = true, comment = false;
+
+    for ( ; ptr < end; ++ptr )
+    {
+        if ( iscntrl(*ptr) )
+        {
+            comment = false;
+            start = true;
+            *ptr = 0;
+        }
+        else if ( comment || (start && isspace(*ptr)) )
+            *ptr = 0;
+        else if ( *ptr == '#' || (start && *ptr == ';') )
+        {
+            comment = true;
+            *ptr = 0;
+        }
+        else
+            start = 0;
+    }
+}
+
 static char *__init get_value(const struct file *file, const char *section,
                               const char *item)
 {
@@ -833,8 +858,9 @@ static bool __init read_file(EFI_FILE_HANDLE dir_handle, CHAR16 *name,
     what = L"Allocation";
     file->addr = min(1UL << (32 + PAGE_SHIFT),
                      HYPERVISOR_VIRT_END - DIRECTMAP_VIRT_START);
+    /* For config files allocate an extra byte to put a NUL there. */
     ret = efi_bs->AllocatePages(AllocateMaxAddress, EfiLoaderData,
-                                PFN_UP(size), &file->addr);
+                                PFN_UP(size + (file == &cfg)), &file->addr);
     if ( EFI_ERROR(ret) )
         goto fail;
 
@@ -852,6 +878,9 @@ static bool __init read_file(EFI_FILE_HANDLE dir_handle, CHAR16 *name,
     FileHandle->Close(FileHandle);
 
     efi_arch_flush_dcache_area(file->ptr, file->size);
+
+    if ( file == &cfg )
+        file->str[file->size] = 0;
 
     return true;
 
@@ -878,37 +907,26 @@ static bool __init read_section(const EFI_LOADED_IMAGE *image,
 
     file->ptr = ptr;
 
+    /* For cfg file, if necessary allocate space to put an extra NUL there. */
+    if ( file == &cfg && file->size && !iscntrl(file->str[file->size - 1]) )
+    {
+        EFI_PHYSICAL_ADDRESS addr;
+        EFI_STATUS ret = efi_bs->AllocatePages(AllocateMaxAddress,
+                                               EfiLoaderData,
+                                               PFN_UP(file->size + 1), &addr);
+
+        if ( EFI_ERROR(ret) )
+            return false;
+
+        memcpy((void *)addr, ptr, file->size);
+        file->addr = addr;
+        file->need_to_free = true;
+        file->str[file->size] = 0;
+    }
+
     handle_file_info(name, file, options);
 
     return true;
-}
-
-static void __init pre_parse(const struct file *file)
-{
-    char *ptr = file->str, *end = ptr + file->size;
-    bool start = true, comment = false;
-
-    for ( ; ptr < end; ++ptr )
-    {
-        if ( iscntrl(*ptr) )
-        {
-            comment = false;
-            start = true;
-            *ptr = 0;
-        }
-        else if ( comment || (start && isspace(*ptr)) )
-            *ptr = 0;
-        else if ( *ptr == '#' || (start && *ptr == ';') )
-        {
-            comment = true;
-            *ptr = 0;
-        }
-        else
-            start = 0;
-    }
-    if ( file->size && end[-1] )
-         PrintStr(L"No newline at end of config file,"
-                   " last line will be ignored.\r\n");
 }
 
 static void __init init_secure_boot_mode(void)
@@ -1317,9 +1335,7 @@ static void __init efi_exit_boot(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *Syste
     EFI_STATUS status;
     UINTN info_size = 0, map_key;
     bool retry;
-#ifdef CONFIG_EFI_SET_VIRTUAL_ADDRESS_MAP
     unsigned int i;
-#endif
 
     efi_bs->GetMemoryMap(&info_size, NULL, &map_key,
                          &efi_mdesc_size, &mdesc_ver);
@@ -1353,31 +1369,33 @@ static void __init efi_exit_boot(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *Syste
     if ( EFI_ERROR(status) )
         PrintErrMesg(L"Cannot exit boot services", status);
 
-#ifdef CONFIG_EFI_SET_VIRTUAL_ADDRESS_MAP
-    for ( i = 0; i < efi_memmap_size; i += efi_mdesc_size )
+    if ( IS_ENABLED(CONFIG_EFI_SET_VIRTUAL_ADDRESS_MAP) )
     {
-        EFI_MEMORY_DESCRIPTOR *desc = efi_memmap + i;
+        for ( i = 0; i < efi_memmap_size; i += efi_mdesc_size )
+        {
+            EFI_MEMORY_DESCRIPTOR *desc = efi_memmap + i;
 
-        /*
-         * Runtime services regions are always mapped here.
-         * Attributes may be adjusted in efi_init_memory().
-         */
-        if ( (desc->Attribute & EFI_MEMORY_RUNTIME) ||
-             desc->Type == EfiRuntimeServicesCode ||
-             desc->Type == EfiRuntimeServicesData )
-            desc->VirtualStart = desc->PhysicalStart;
-        else
-            desc->VirtualStart = INVALID_VIRTUAL_ADDRESS;
+            /*
+             * Runtime services regions are always mapped here.
+             * Attributes may be adjusted in efi_init_memory().
+             */
+            if ( (desc->Attribute & EFI_MEMORY_RUNTIME) ||
+                 desc->Type == EfiRuntimeServicesCode ||
+                 desc->Type == EfiRuntimeServicesData )
+                desc->VirtualStart = desc->PhysicalStart;
+            else
+                desc->VirtualStart = INVALID_VIRTUAL_ADDRESS;
+        }
+        status = efi_rs->SetVirtualAddressMap(efi_memmap_size, efi_mdesc_size,
+                                              mdesc_ver, efi_memmap);
+        if ( status != EFI_SUCCESS )
+        {
+            printk(XENLOG_ERR
+                   "EFI: SetVirtualAddressMap() failed (%#lx), disabling runtime services\n",
+                   status);
+            __clear_bit(EFI_RS, &efi_flags);
+        }
     }
-    status = efi_rs->SetVirtualAddressMap(efi_memmap_size, efi_mdesc_size,
-                                          mdesc_ver, efi_memmap);
-    if ( status != EFI_SUCCESS )
-    {
-        printk(XENLOG_ERR "EFI: SetVirtualAddressMap() failed (%#lx), disabling runtime services\n",
-               status);
-        __clear_bit(EFI_RS, &efi_flags);
-    }
-#endif
 
     /* Adjust pointers into EFI. */
     efi_ct = (const void *)efi_ct + DIRECTMAP_VIRT_START;

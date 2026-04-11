@@ -99,15 +99,6 @@ bool __init is_forced_cpu_cap(unsigned int cap)
 	return test_bit(cap, forced_caps) || test_bit(cap, cleared_caps);
 }
 
-static void cf_check default_init(struct cpuinfo_x86 * c)
-{
-	/* Not much we can do here... */
-	__clear_bit(X86_FEATURE_SEP, c->x86_capability);
-}
-
-static const struct cpu_dev __initconst_cf_clobber __used default_cpu = {
-	.c_init	= default_init,
-};
 static struct cpu_dev __ro_after_init actual_cpu;
 
 static DEFINE_PER_CPU(uint64_t, msr_misc_features);
@@ -336,7 +327,6 @@ void __init early_cpu_init(bool verbose)
 	case X86_VENDOR_SHANGHAI: actual_cpu = shanghai_cpu_dev; break;
 	case X86_VENDOR_HYGON:    actual_cpu = hygon_cpu_dev;    break;
 	default:
-		actual_cpu = default_cpu;
 		if (!verbose)
 			break;
 		printk(XENLOG_ERR
@@ -456,10 +446,13 @@ void reset_cpuinfo(struct cpuinfo_x86 *c, bool keep_basic)
     CPU_DATA_INIT((*c));
 }
 
-static void generic_identify(struct cpuinfo_x86 *c)
+void identify_cpu(struct cpuinfo_x86 *c)
 {
 	uint64_t val;
 	u32 eax, ebx, ecx, edx, tmp;
+	unsigned int i;
+
+	reset_cpuinfo(c, false);
 
 	/* Get vendor name */
 	cpuid(0, &c->cpuid_level, &ebx, &ecx, &edx);
@@ -559,24 +552,6 @@ static void generic_identify(struct cpuinfo_x86 *c)
 		c->x86_capability[FEATURESET_m10Al] = val;
 		c->x86_capability[FEATURESET_m10Ah] = val >> 32;
 	}
-}
-
-/*
- * This does the hard work of actually picking apart the CPU stuff...
- */
-void identify_cpu(struct cpuinfo_x86 *c)
-{
-	int i;
-
-	reset_cpuinfo(c, false);
-	generic_identify(c);
-
-#ifdef NOISY_CAPS
-	printk(KERN_DEBUG "CPU: After vendor identify, caps:");
-	for (i = 0; i < NCAPINTS; i++)
-		printk(" %08x", c->x86_capability[i]);
-	printk("\n");
-#endif
 
 	/*
 	 * Vendor-specific initialization.  In this section we
@@ -613,13 +588,6 @@ void identify_cpu(struct cpuinfo_x86 *c)
 	/* Now the feature flags better reflect actual CPU features! */
 
 	xstate_init(c);
-
-#ifdef NOISY_CAPS
-	printk(KERN_DEBUG "CPU: After all inits, caps:");
-	for (i = 0; i < NCAPINTS; i++)
-		printk(" %08x", c->x86_capability[i]);
-	printk("\n");
-#endif
 
 	/*
 	 * If RDRAND is available, make an attempt to check that it actually

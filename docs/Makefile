@@ -55,6 +55,16 @@ build: html txt pdf man-pages figs
 sphinx-html:
 	sphinx-build -b html . sphinx/html
 
+# Sphinx build target that sets up a virtual environment and installs
+# dependencies. This is intended for use by developers who want to build
+# the Sphinx documentation locally. Keep it the dependencies in sync with
+# .readthedocs.yaml.
+sphinx-env-build:
+	if [ ! -d .sphinx ]; then python -m venv .sphinx; fi
+	. .sphinx/bin/activate && \
+	pip install sphinx-rtd-theme sphinxcontrib-mermaid && \
+	$(MAKE) sphinx-html
+
 .PHONY: html
 html: $(DOC_HTML) html/index.html
 
@@ -76,7 +86,7 @@ pdf: $(DOC_PDF)
 clean: clean-man-pages
 	$(MAKE) -C figs clean
 	rm -rf .word_count *.aux *.dvi *.bbl *.blg *.glo *.idx *~
-	rm -rf *.ilg *.log *.ind *.toc *.bak *.tmp core
+	rm -rf *.ilg *.log *.ind *.toc *.bak *.tmp core .sphinx
 	rm -rf html txt pdf sphinx/html
 
 .PHONY: distclean

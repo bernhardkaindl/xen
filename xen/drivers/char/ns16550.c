@@ -346,9 +346,16 @@ static void ns16550_setup_preirq(struct ns16550 *uart)
         if ( divisor )
             uart->baud = uart->clock_hz / (divisor << 4);
         else
+        {
+            uart->baud = 115200;
             printk(XENLOG_ERR
                    "Automatic baud rate determination was requested,"
-                   " but a baud rate was not set up\n");
+                   " but a baud rate was not set up\n"
+                   "Setting baudrate to %u\n", uart->baud);
+            divisor = uart->clock_hz / (uart->baud << 4);
+            ns_write_reg(uart, UART_DLL, (uint8_t)divisor);
+            ns_write_reg(uart, UART_DLM, (uint8_t)(divisor >> 8));
+        }
     }
     ns_write_reg(uart, UART_LCR, lcr);
 
@@ -1443,7 +1450,7 @@ static enum __init serial_param_type get_token(char *token, char **value)
     unsigned int i;
 
     param_name = strsep(&token, "=");
-    if ( param_name == NULL )
+    if ( !param_name || !token )
         return num_serial_params;
 
     /* Linear search for the parameter. */
@@ -1517,6 +1524,9 @@ static bool __init parse_positional(struct ns16550 *uart, char **str)
     if ( *conf == ',' && *++conf != ',' )
     {
         uart->data_bits = simple_strtoul(conf, &conf, 10);
+
+        if ( !*conf )
+            PARSE_ERR_RET("bad DPS setting");
 
         uart->parity = parse_parity_char(*conf);
 

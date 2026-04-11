@@ -4748,27 +4748,25 @@ x86_emulate(
                  */
                 if ( vex.l )
                 {
-                    /* vpxor %xmmN, %xmmN, %xmmN */
-                    asm volatile ( ".byte 0xc5,0xf9,0xef,0xc0" );
-                    asm volatile ( ".byte 0xc5,0xf1,0xef,0xc9" );
-                    asm volatile ( ".byte 0xc5,0xe9,0xef,0xd2" );
-                    asm volatile ( ".byte 0xc5,0xe1,0xef,0xdb" );
-                    asm volatile ( ".byte 0xc5,0xd9,0xef,0xe4" );
-                    asm volatile ( ".byte 0xc5,0xd1,0xef,0xed" );
-                    asm volatile ( ".byte 0xc5,0xc9,0xef,0xf6" );
-                    asm volatile ( ".byte 0xc5,0xc1,0xef,0xff" );
+                    asm volatile ( "vpxor %xmm0, %xmm0, %xmm0" );
+                    asm volatile ( "vpxor %xmm1, %xmm1, %xmm1" );
+                    asm volatile ( "vpxor %xmm2, %xmm2, %xmm2" );
+                    asm volatile ( "vpxor %xmm3, %xmm3, %xmm3" );
+                    asm volatile ( "vpxor %xmm4, %xmm4, %xmm4" );
+                    asm volatile ( "vpxor %xmm5, %xmm5, %xmm5" );
+                    asm volatile ( "vpxor %xmm6, %xmm6, %xmm6" );
+                    asm volatile ( "vpxor %xmm7, %xmm7, %xmm7" );
                 }
                 else
                 {
-                    /* vpor %xmmN, %xmmN, %xmmN */
-                    asm volatile ( ".byte 0xc5,0xf9,0xeb,0xc0" );
-                    asm volatile ( ".byte 0xc5,0xf1,0xeb,0xc9" );
-                    asm volatile ( ".byte 0xc5,0xe9,0xeb,0xd2" );
-                    asm volatile ( ".byte 0xc5,0xe1,0xeb,0xdb" );
-                    asm volatile ( ".byte 0xc5,0xd9,0xeb,0xe4" );
-                    asm volatile ( ".byte 0xc5,0xd1,0xeb,0xed" );
-                    asm volatile ( ".byte 0xc5,0xc9,0xeb,0xf6" );
-                    asm volatile ( ".byte 0xc5,0xc1,0xeb,0xff" );
+                    asm volatile ( "vpor %xmm0, %xmm0, %xmm0" );
+                    asm volatile ( "vpor %xmm1, %xmm1, %xmm1" );
+                    asm volatile ( "vpor %xmm2, %xmm2, %xmm2" );
+                    asm volatile ( "vpor %xmm3, %xmm3, %xmm3" );
+                    asm volatile ( "vpor %xmm4, %xmm4, %xmm4" );
+                    asm volatile ( "vpor %xmm5, %xmm5, %xmm5" );
+                    asm volatile ( "vpor %xmm6, %xmm6, %xmm6" );
+                    asm volatile ( "vpor %xmm7, %xmm7, %xmm7" );
                 }
 
                 ASSERT(!state->simd_size);
@@ -7858,6 +7856,19 @@ x86_emulate(
             avx512_vlen_check(b & 1);
         goto simd_zmm;
     }
+
+    case X86EMUL_OPC_EVEX(6, 0x80): /* vbmac{,x}or16x16x16 [xyz]mm/mem,[xyz]mm,[xyz]mm */
+        vcpu_must_have(avx512_bmm);
+        generate_exception_if(!evex.lr || evex.brs || evex.opmsk, X86_EXC_UD);
+        avx512_vlen_check(false);
+        goto simd_zmm;
+
+    case X86EMUL_OPC_EVEX(6, 0x81): /* vbitrev [xyz]mm/mem,[xyz]mm */
+        vcpu_must_have(avx512_bmm);
+        generate_exception_if(evex.w || evex.brs || evex.reg != 0xf || !evex.RX,
+                              X86_EXC_UD);
+        avx512_vlen_check(false);
+        goto simd_zmm;
 
     case X86EMUL_OPC_XOP(08, 0x85): /* vpmacssww xmm,xmm/m128,xmm,xmm */
     case X86EMUL_OPC_XOP(08, 0x86): /* vpmacsswd xmm,xmm/m128,xmm,xmm */

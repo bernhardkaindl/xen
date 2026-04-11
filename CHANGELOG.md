@@ -26,9 +26,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
    - The cpuid_mask_* command line options for legacy CPUs.  These were
      deprecated in Xen 4.7 and noted not to work correctly with AMD CPUs from
      2011 onwards, nor work at all with Intel CPUs from 2012.
+   - The SYSCTL_get_cpu_levelling_caps sysctl.  This is not known to have been
+     used by any toolstack.
    - Xenoprofile support.  Oprofile themselves removed support for Xen in 2014
      prior to the version 1.0 release, and there has been no development since
      before then in Xen.
+   - Cross-vendor support; guests can now only be configured as the same
+     vendor as the host CPU.  When added back in 2009, with enough trickery
+     Intel and AMD CPUs could be made to be compatible enough to live migrate
+     a guest, but the vendors have been diverging since then in ways that Xen
+     cannot compensate for, and the advent of speculative security issues has
+     put to rest any possibility of this being a viable option.
 
  - Removed xenpm tool on non-x86 platforms as it doesn't actually provide
    anything useful outside of x86.
