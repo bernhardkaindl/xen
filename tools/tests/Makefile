@@ -2,6 +2,7 @@ XEN_ROOT = $(CURDIR)/../..
 include $(XEN_ROOT)/tools/Rules.mk
 
 SUBDIRS-y :=
+SUBDIRS-y += alloc
 SUBDIRS-y += domid
 SUBDIRS-y += mem-claim
 SUBDIRS-y += paging-mempool
