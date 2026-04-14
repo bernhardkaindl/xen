@@ -1,0 +1,93 @@
+xen/mm: Introduce NUMA-aware claim sets for domains
+
+Hi all,
+
+This series extends Xen's memory claim handling to support claim sets
+spanning multiple NUMA nodes.
+
+Earlier review raised the concern that claims would need to evolve from a
+single claim into a multi-node model. Roger Pau Monné described the core
+requirement well:
+
+  >  Ideally, we would need to introduce a new hypercall that allows
+  >  making claims from multiple nodes in a single locked region,
+  >  as to ensure success or failure in an atomic way.
+
+      -- Roger Pau Monné
+
+This submission implements that model, and its design and code have been
+validated through the following methods:
+
+1. A suite of host-side integration tests (to be posted shortly), which
+   can be executed on the build host (e.g., on a developer machine) like
+   the PDX tests by Roger Pau Monné (make -C tools/tests/pdx run), as
+   well as the domid and rangeset tests.
+
+2. A comprehensive functional system test suite (with nineteen test
+   cases), included in this v6 submission. These tests are run using
+   automated deployment across various machine types and generations
+   in our labs.
+
+3. A set of high-level functional integration tests and performance
+   tests, executed as part of end-to-end product deployment validation.
+
+4. Validation in a customer's standardised application performance lab
+   to confirm their performance expectations. (This testing was done on
+   predecessor code sharing the same design, with the main difference
+   being that only single-node claims were supported in the previous
+   code base.)
+
+The series has been reworked substantially in response to v4 review.
+Because of that, it is likely best reviewed as a fresh series rather
+than incrementally.
+
+Patch summary:
+
+1. xen/mm: Refactor deducting claims to prepare for functional changes
+2. xen/mm: Claims check: Allow free pages to cover a shortfall of claims
+3. xen/mm: Optimise getting free page counts per NUMA node
+4. xen/mm: Split d->outstanding_pages to global_claims & node_claims
+5. xen/mm: Introduce Claim Sets for multiple NUMA nodes
+6. tools/ocaml/libs/xc: Add OCaml bindings for NUMA-aware claims
+7. tools/tests/mem-claim: Add a test suite for the memory claim API
+
+The v2 design document submitted ahead of this series may also help with
+review. It explains the background, design rationale, and implementation
+details.
+
+Rendered version:
+https://bernhard-xen.readthedocs.io/en/claim-sets-v2-design/designs/claims
+
+Many thanks to everyone who contributed to the earlier work and review,
+especially Alejandro Vallejo, Jan Beulich, Andrew Cooper, Roger Pau
+Monné, Marcus Granado, and Edwin Török.
+
+Changes since v5:
+-----------------
+
+- No functional changes for the sum of all commits.
+  (Adding a new function argument was moved to the commit that needs it.)
+
+- Added a comprehensive test suite for the new hypercall using the
+  libxenctrl wrapper xc_domain_claim_memory(), based on the test in
+  tools/tests/mem-claim/test-mem-claim.c for the existing hypercall
+  API by Andrew Cooper.
+
+- Improved the function names to follow standard naming recommendations.
+  The added functions are renamed as follows:
+
+  * claims_retire_allocation() -> redeem_claims_for_allocation()
+    - Use "redeem" because it is part of an exchange of claims for memory.
+
+  * claims_retire_global()     -> deduct_global_claims()
+  * claims_retire_nodes()      -> deduct_node_claims()
+    - These perform the act of reducing the amount of global/node claims.
+
+  * claims_retire_node()       -> cancel_all_node_claims()
+    - Cancel all node claims when needed when the claims are terminated.
+
+  * The comments and the design document v2 have been updated accordingly.
+
+Thanks,
+
+  Bernhard
