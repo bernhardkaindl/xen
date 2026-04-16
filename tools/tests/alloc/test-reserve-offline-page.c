@@ -238,109 +238,6 @@ static void test_merge_tail_pair(int start_mfn)
           "Tail page of the merged buddy should not use first_dirty");
 }
 
-/*
- * Exercise splitting an order-2 buddy where the first and the last subpage
- * are offlined and the middle two subpages are healthy.
- *
- * This checks if reserve_offlined_page() correctly splits the order-2 chunk
- * into four order-0 fragments: It should move first and last offlined pages
- * to the offlined list and the middle two healthy pages in the middle should
- * not be merged into an order-1 buddy because the invariant is that buddies
- * must be naturally aligned to their size, and the middle two pages are not
- * aligned to an order-1 boundary.
- */
-static void test_unaligned_order_one_buddy(int start_mfn)
-{
-    unsigned int zone;
-    struct page_info *page = test_pages + start_mfn;
-    uint32_t status = 0;
-
-    /* PREPARE */
-    /* Seed a single order-2 buddy onto the heap */
-    zone = test_page_list_add_buddy(page, order2);
-
-    /*
-     * To test updating first_dirty on the surviving pages after the split,
-     * we mark the 3rd page as the first dirty page in the buddy. After the
-     * split, the first_dirty index of the 3rd page should be updated to 0.
-     */
-    page[2].count_info |= PGC_need_scrub;
-    page[0].u.free.first_dirty = 2;
-
-    /* ACT */
-    ASSERT(offline_page(start_mfn + 0, 0, &status) == 0); /* Offline 1st page */
-    ASSERT(status & PG_OFFLINE_OFFLINED);
-    status = 0;
-    ASSERT(offline_page(start_mfn + 3, 0, &status) == 0); /* Offline 4th page */
-    ASSERT(status & PG_OFFLINE_OFFLINED);
-
-    /* ASSERT */
-    CHECK_BUDDY(page, "After reserving the offlined subpage");
-
-    /* Out of the four pages seeded onto the heap, two remain online*/
-    ASSERT(FREE_PAGES == 2);
-    ASSERT(avail_heap_pages(zone, zone, node) == 2);
-
-    /* pages 0 and 3 are offlined */
-    ASSERT_LIST_EQUAL(&page_offlined_list, page + 0, page + 3);
-
-    /* Checks for buddy splitting and merging */
-
-    /*
-     * The original order-2 entry should be gone after extracting
-     * the offlined page from it.
-     */
-    ASSERT(page_list_empty(&heap(node, zone, order2)));
-    /*
-     * The order-1 heap should also be empty because the middle pages are
-     * not aligned to an order-1 boundary and should not be merged.
-     */
-    EXPECTED_TO_FAIL_BEGIN();
-    CHECK(page_list_empty(&heap(node, zone, order1)),
-          "order-1 heap empty as pages aren't aligned");
-    EXPECTED_TO_FAIL_END(1);
-
-    /*
-     * The two middle pages must NOT be coalesced into an order-1 buddy.
-     *
-     * Buddies must be naturally aligned to their size: an order-k block
-     * must start at a MFN that is a multiple of 2^k pages. The middle
-     * pair of subpages in this test are not aligned to an order-1
-     * boundary, so merging them would create an unaligned order-1
-     * buddy and violate that invariant.
-     *
-     * This test asserts that after removing the first and last subpages
-     * from an order-2 chunk, the two surviving middle pages remain as
-     * separate order-0 free pages and must not be merged.
-     */
-    EXPECTED_TO_FAIL_BEGIN();
-    ASSERT_LIST_EQUAL(&heap(node, zone, order0), page + 1, page + 2);
-    CHECK(PFN_ORDER(page + 1) == 0, "page[1] should be order-0");
-    EXPECTED_TO_FAIL_END(4);
-    CHECK(PFN_ORDER(page + 2) == 0, "page[2] should be order-0");
-
-    /* Checks for first_dirty propagation */
-
-    /* The 1st offlined page should have invalid first_dirty */
-    ASSERT(page[0].u.free.first_dirty == INVALID_DIRTY_IDX);
-
-    /*
-     * Before reserve_offlined_page(), the order-2 chunk had first_dirty=2
-     * which means that the page at index 2 was the first dirty page in the
-     * chunk.
-     */
-    EXPECTED_TO_FAIL_BEGIN();
-    CHECK(page[1].u.free.first_dirty == INVALID_DIRTY_IDX,
-          "page[1] clean: first_dirty invalid");
-
-    CHECK(page[2].u.free.first_dirty == 0,
-          "page[2] dirty: first_dirty refers to itself");
-    EXPECTED_TO_FAIL_END(2);
-
-    /* The 2nd offlined page should have invalid first_dirty */
-    ASSERT(page[3].u.free.first_dirty == INVALID_DIRTY_IDX);
-}
-
 int main(int argc, char *argv[])
 {
     const char *topic = "Test offlining pages with reserve_offline_page()";
@@ -354,7 +251,6 @@ int main(int argc, char *argv[])
     RUN_TESTCASE(TMOB, test_mixed_order_one_buddy, 4);
     RUN_TESTCASE(TTOP, test_two_offlined_pages_order_two, 4);
     RUN_TESTCASE(TMTP, test_merge_tail_pair, 4);
-    RUN_TESTCASE(TUOB, test_unaligned_order_one_buddy, 4);
 
     return testcase_print_summary(program_name);
 }

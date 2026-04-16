@@ -35,11 +35,9 @@ static void test_unaligned_order_two_buddy(int start_mfn)
     offline_page(start_mfn, 0, &status);
 
     /* ASSERT */
-    EXPECTED_TO_FAIL_BEGIN();
     CHECK(page_aligned(page + 1),
           "MFN %ld violates the invariant of !(mfn & 2^order) <= 0 (order=%d)!",
           page_to_mfn(page + 1), PFN_ORDER(page + 1));
-    EXPECTED_TO_FAIL_END(1);
 
     /* Allocate and free a page to trigger buddy merging on free. */
     free_domheap_pages(alloc_domheap_pages(dom1, order0, 0), order0);
@@ -52,13 +50,10 @@ static void test_unaligned_order_two_buddy(int start_mfn)
 
     /* Inspect the predecessor in case pg is the tail of an unaligned buddy. */
     predecessor = pg - 1;
-
-    EXPECTED_TO_FAIL_BEGIN();
     CHECK(PFN_ORDER(predecessor) != 1,
           "If an unaligned buddy uses pg as its tail, the next alloc will BUG");
 
     CHECK(page_to_mfn(pg) != 6, "In the failure case, we just allocated MFN 6");
-    EXPECTED_TO_FAIL_END(2);
 
     /*
      * Log the heap state. It should contain MFN 6 as an order-0 page:
@@ -66,23 +61,11 @@ static void test_unaligned_order_two_buddy(int start_mfn)
      * Heap for zone 3, order 0:
      *   mfn 6:
      *     flags: PGC_state_free
-     *
-     * With an unaligned MFN 5+6 buddy, the heap would instead look like this,
-     * with MFN 6 marked in use even though it had appeared twice on the free
-     * list after page 7 was freed and merged with its aligned predecessor:
-     *
-     *  Heap for zone 3, order 1:
-     *   mfn 5: not aligned to order 1!
-     *     flags: PGC_state_free, subpages of mfn 5 below:
-     *     mfn 6: first_dirty 0 ()
-     *       flags: PGC_state_inuse <= This will cause a BUG() on the next alloc
      */
     CHECK_BUDDY(page, "If MFN 6 is in use here, the next alloc will hit BUG()");
 
     /* Allocate the remaining page; a clean heap should not hit BUG(). */
-    testcase_assert_expect_to_hit_bug = 1;
     assert(page_to_mfn(alloc_domheap_pages(dom1, order0, 0)) == 6);
-    assert(testcase_assert_expect_to_hit_bug == 0);
 }
 
 int main(int argc, char *argv[])
