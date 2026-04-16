@@ -72,10 +72,43 @@
 #define flsl(x) ((unsigned int)((x) ? BITS_PER_LONG - __builtin_clzl(x) : 0))
 
 static bool testcase_assert_expected_to_fail;
+static int testcase_assert_expect_to_hit_bug;
+
 __attribute__((format(printf, 5, 6)))
 static void testcase_assert(bool condition, const char *file, int line,
                             const char *func, const char *fmt, ...);
-#define BUG()                     assert(false)
+
+static void instrumented_bug(const char *file, int line, const char *func)
+{
+    if ( testcase_assert_expect_to_hit_bug )
+    {
+        testcase_assert_expect_to_hit_bug--;
+        testcase_assert_expected_to_fail = true;
+    }
+    testcase_assert(false, file, line, func,
+                    "\n  ========> XEN BUG in %s(), line %d <========\n", func,
+                    line);
+    testcase_assert_expected_to_fail = false;
+}
+
+__attribute__((format(printf, 1, 2)))
+int printk(const char *fmt, ...)
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    if ( strncmp(fmt, "<0>", 3) == 0 )
+    {
+        fprintf(stderr, "\n  ========> XENLOG_ERR: ");
+        fmt += 3;
+    }
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    return 0;
+}
+
+/* Assertion and logging helpers shared across the tests. */
+#define BUG()                     instrumented_bug(__FILE__, __LINE__, __func__)
 #define domain_crash(d)           ((void)(d))
 #define PRI_mfn                   "lu"
 #define PRI_stime                 "lld"

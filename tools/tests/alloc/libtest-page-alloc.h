@@ -7,7 +7,7 @@
 #define TOOLS_TESTS_ALLOC_LIBTEST_PAGE_ALLOC_H
 
 #pragma GCC diagnostic error "-Wextra"
-#include "page-alloc-wrapper.h"
+#include "page-alloc-heap.h"
 static const unsigned int node = 0;
 static const unsigned int node0 = 0;
 static const unsigned int node1 = 1;

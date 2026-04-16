@@ -83,7 +83,9 @@ static void test_page_list_init(struct page_list_head *list)
 #define page_to_list(d, pg)          (&test_page_list)
 #define page_list_add(pg, list)      test_page_list_add(pg, list)
 #define page_list_add_tail(pg, list) test_page_list_add_tail(pg, list)
-#define page_list_del(pg, list)      test_page_list_del(pg, list);
+#define page_list_del(pg, list)      test_page_list_del_chk(pg, list, \
+                                                            __FILE__, \
+                                                            __func__, __LINE__)
 #define page_list_for_each_safe(pos, tmp, list)        \
         for ( (pos) = page_list_first(list),           \
               (tmp) = (pos) ? (pos)->list_next : NULL; \
@@ -142,6 +144,48 @@ static struct page_info *test_page_list_del(struct page_info *pg,
     ASSERT(list->count > 0);
     list->count--;
     return pg;
+}
+
+/* Check whether pg is in list. */
+static bool in_list(struct page_info *pg, struct page_list_head *list)
+{
+    struct page_info *pos, *tmp;
+
+    page_list_for_each_safe(pos, tmp, list)
+    {
+        if ( pos == pg )
+            return true;
+    }
+    return false;
+}
+
+static void print_list_location(struct page_list_head *list);
+
+static void test_page_list_del_chk(struct page_info *pg,
+                                   struct page_list_head *list,
+                                   const char *file, const char *func,
+                                   int line)
+{
+    const char *tmp;
+
+    while ( (tmp = strstr(file, "../")) )
+        file += 3;
+
+    if ( !in_list(pg, list))
+    {
+        printf("\n%s:%d: %s(): Attempting to remove MFN %lu\n   from ",
+               file, line, func, page_to_mfn(pg));
+        print_list_location(list);
+        printf(" but it was not found in this list\n\n");
+    }
+    else
+    {
+        printf("%s:%d: %s:\n- Removing page MFN %lu from ",
+               file, line, func, page_to_mfn(pg));
+        print_list_location(list);
+        printf("\n");
+        test_page_list_del((pg), (list));
+    }
 }
 
 #define PG_shift(idx)         (BITS_PER_LONG - (idx))
