@@ -1,0 +1,43 @@
+Subject: xen/mm: Test page offlining and fix the exposed bugs
+
+Hi all,
+
+This series adds a host-side integration test suite for offlining
+pages from the Xen heap and fixes the issues the test suite exposes
+in reserve_offlined_page().
+
+Offlining pages from the Xen heap still has known limitations,
+particularly when larger buddies are involved. The purpose of this
+series is to make the current behaviour easy to reproduce on a
+synthetic heap, validate the resulting heap state in isolation, and
+fix the specific bugs currently exercised by those test cases.
+
+This series depends on the earlier host-side page_alloc.c test
+framework series, which added the alloc test harness used here:
+
+https://lists.xen.org/archives/html/xen-devel/2026-04/msg00649.html
+https://patchwork.kernel.org/project/xen-devel/list/?series=1081689
+
+In turn, it depends on the NUMA claim sets series v6:
+[PATCH v6 0/7] xen/mm: Introduce NUMA-aware claim sets for domains
+https://lists.xen.org/archives/html/xen-devel/2026-04/msg00587.html
+https://patchwork.kernel.org/project/xen-devel/list/?series=1081139
+
+This submission, on top of those dependencies can be retrieved with:
+
+git pull git@gitlab.com:bernhardkaindl/xen.git offline_page-tests-v1
+
+Patch summary:
+
+1. tools/tests/alloc: Integration test suite for offlining pages
+2. xen/mm: Fix off-by-one preventing tail merge in reserve_offlined_page()
+3. xen/mm: Avoid merging unaligned survivors in reserve_offlined_page()
+4. xen/mm: Fixup the order of buddy heads when offlining pages
+
+Together, these tests and fixes make the offlining functionality easier
+to validate and reduce the risk of corrupt allocator state when offlined
+pages are split out of larger buddies.
+
+Thanks,
+
+  Bernhard Kaindl
