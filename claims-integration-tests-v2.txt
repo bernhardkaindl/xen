@@ -1,0 +1,58 @@
+xen/mm: Host-side integration test environment for page_alloc.c
+
+Hi all,
+
+This patch series introduces a host-side integration test environment
+for Xen's page allocator in xen/common/page_alloc.c.
+
+Using this environment, it also introduces integration tests for claims,
+including NUMA-aware claim sets, complementing the functional system tests
+submitted as part of the NUMA-aware claims v6 series.
+
+The claim tests verify the page allocator's behaviour with multi-node
+claim sets in scenarios that are easier to isolate and validate using a
+synthetic Xen heap and domain state, offering full control and visibility
+into claim states as claims are made and redeemed during heap allocation.
+
+For these tests, this series depends on the NUMA claims v6 series,
+which introduced NUMA-aware claim sets:
+
+[PATCH v6 0/7] xen/mm: Introduce NUMA-aware claim sets for domains
+https://lists.xen.org/archives/html/xen-devel/2026-04/msg00587.html
+https://patchwork.kernel.org/project/xen-devel/list/?series=1081139
+
+Its design is described in this document:
+
+[PATCH v2] docs: Draft Design Document for NUMA-aware claim sets
+https://lists.xen.org/archives/html/xen-devel/2026-04/msg00569.html
+https://patchwork.kernel.org/project/xen-devel/list/?series=1081047
+
+Patch summary:
+
+1. tools/tests/alloc: Add a test environment for the page allocator
+2. tools/tests/alloc: Add integration tests for claims and claim sets
+3. tools/tests/alloc: Add tests for offlining with claims present
+4. xen/mm: Recall claims when offlining pages if needed
+
+Thanks,
+
+  Bernhard Kaindl
+
+---
+Changes since v1:
+1. Refactored the test environment for minimalism:
+   - Improved separation of concerns.
+   - Moved extensions to later patch series.
+   - Simplified code with targeted assertions and concise comments.
+2. Fixed file names to avoid underscores.
+3. Updated include guards to comply with CODING_STYLE.
+
+---
+PS: The bug fixed in the last commit also affects the global claims
+in Xen master when offlining pages.
+
+While offlining has known limitations, the bug fixed in this series also
+affects global claims in Xen master when pages are offlined. I will submit
+a follow-up series to address offlining itself. In the meantime, this test
+framework enables targeted testing on a synthetic Xen heap and simplifies
+validation by letting the tests observe heap-state changes during offlining.
