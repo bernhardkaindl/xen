@@ -23,9 +23,7 @@ static void test_offlining_with_global_claims(int mfn)
     ASSERT(status & PG_OFFLINE_OFFLINED);
 
     CHECK(FREE_PAGES == 2, "Expect 2 free pages after offlining two pages");
-    EXPECTED_TO_FAIL_BEGIN();
     CHECK(TOTAL_CLAIMS == 2, "Expect 2 claims after offlining two pages");
-    EXPECTED_TO_FAIL_END(1);
 }
 
 
@@ -53,9 +51,7 @@ static void test_offlining_with_node_claims(int mfn)
     ASSERT(status & PG_OFFLINE_OFFLINED);
 
     CHECK(FREE_PAGES == 2, "Expect 2 free pages after offlining two pages");
-    EXPECTED_TO_FAIL_BEGIN();
     CHECK(TOTAL_CLAIMS == 2, "Expect 2 claims after offlining two pages");
-    EXPECTED_TO_FAIL_END(1);
 }
 
 int main(int argc, char *argv[])

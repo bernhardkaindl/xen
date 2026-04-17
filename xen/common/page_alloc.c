@@ -1575,6 +1575,48 @@ static int reserve_offlined_page(struct page_info *head)
         count++;
     }
 
+    if ( count )
+    {
+        long recall_pages;
+        struct domain *d;
+
+        /* Ensure that claims on the node are in line with its free memory. */
+        recall_pages = node_outstanding_claims[node] - node_avail_pages[node];
+        if ( recall_pages > 0 )
+            /*
+             * node_avail_pages slipped below node_outstanding_claims.
+             * We need to recall claimed pages until the amount of claimed
+             * memory is in line with the amount of available memory again.
+             */
+            for_each_domain ( d )
+            {
+                if ( d->claims[node] )
+                {
+                    recall_pages -= deduct_node_claims(d, node, recall_pages);
+                    if ( recall_pages <= 0 )
+                        break;
+                }
+            }
+
+        /* Ensure that outstanding claims are in line with available memory. */
+        recall_pages = outstanding_claims - total_avail_pages;
+        if ( recall_pages > 0 )
+            /*
+             * total_avail_pages slipped below outstanding_claims.
+             * We need to recall claimed pages until the amount of claimed
+             * memory is in line with the amount of available memory again.
+             */
+            for_each_domain ( d )
+            {
+                if ( d->global_claims )
+                {
+                    recall_pages -= deduct_global_claims(d, recall_pages);
+                    if ( recall_pages <= 0 )
+                        break;
+                }
+            }
+    }
+
     return count;
 }
 
