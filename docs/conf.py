@@ -86,6 +86,27 @@ needs_sphinx = "8.0"
 # ones.
 extensions = []
 
+
+# autosectionlabel allows referencing sections using their title, without
+# needing to add explicit labels to each section. Used by design documents.
+extensions.append("sphinx.ext.autosectionlabel")
+# Setting autosectionlabel_prefix_document to True allows disambiguating
+# between sections with the same title in different documents by prefixing
+# the label with the document path.
+autosectionlabel_prefix_document = True
+
+
+# Mermaid diagrams are used in the design documents, so we try to
+# load the extension if it's available, but don't fail if it's not:
+try:
+    import sphinxcontrib.mermaid
+
+    extensions.append("sphinxcontrib.mermaid")
+    # For included Mermaid diagram files, init the extension explicitly.
+    mermaid_init_js = "mermaid.initialize({ startOnLoad: true });"
+except ImportError:
+    pass
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
