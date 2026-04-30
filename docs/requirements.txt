@@ -1,3 +1,4 @@
 gitpython
 pydata-sphinx-theme==0.23.0
 sphinx-autobuild==2025.08.25
+sphinxcontrib-mermaid==2.1.1
