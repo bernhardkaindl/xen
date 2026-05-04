@@ -13,3 +13,5 @@ and for those interested in the internal workings of Xen.
    :numbered: 4
 
    launch/index
+   cache-coloring
+   claims/index

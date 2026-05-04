@@ -1,7 +1,7 @@
 .. SPDX-License-Identifier: CC-BY-4.0
 
-Xen cache coloring user guide
-=============================
+Cache Coloring
+==============
 
 The cache coloring support in Xen allows to reserve Last Level Cache (LLC)
 partitions for Dom0, DomUs and Xen itself. Currently only ARM64 is supported.
