@@ -14,7 +14,11 @@ in understanding the inner workings of the Xen hypervisor.
    :maxdepth: 2
 
    ../designs/index
+   ../misc/xen-makefiles/makefiles
+   ../misc/ci
    code-coverage
 
    x86/index
    arm/index
+   ../misra/index
+   ../fusa/index
