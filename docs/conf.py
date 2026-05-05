@@ -118,6 +118,12 @@ html_static_path = []
 #
 # html_sidebars = {}
 
+# -- Options for HTML themes -------------------------------------------------
+
+html_logo_bright_mode = "_static/logo-xen.svg"
+html_logo_dark_mode = "_static/logo-xen-reverse.svg"
+html_favicon = "_static/favicon-xen-32x32.png"
+
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
@@ -135,6 +141,14 @@ else:  # pydata and other themes:
 try:
     importlib.import_module(theme_mod)
     html_theme = theme_mod
+
+    # Theme options are theme-specific and customize the look and feel
+    # of a theme further. For a list of options available for each theme,
+    # see the documentation of that theme. e.g. for sphinx_book_theme, see
+    # https://sphinx-book-theme.readthedocs.io/en/latest/configure.html#options
+
+    if html_theme == "sphinx_rtd_theme":
+        html_logo = html_logo_dark_mode  # Logo is on a darker background in rtd
 
 except ImportError:
     sys.stderr.write(
