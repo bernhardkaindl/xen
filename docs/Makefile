@@ -55,6 +55,20 @@ build: html txt pdf man-pages figs
 sphinx-html:
 	sphinx-build -b html . sphinx/html
 
+.PHONY: .sphinx
+.sphinx:
+	if [ ! -d .sphinx ]; then python -m venv .sphinx; fi
+	. .sphinx/bin/activate && pip install -r requirements.txt
+
+.PHONY: sphinx-build
+sphinx-build: .sphinx
+	. .sphinx/bin/activate && $(MAKE) sphinx-html
+
+.PHONY: sphinx-autobuild
+sphinx-autobuild: .sphinx
+	. .sphinx/bin/activate && sphinx-autobuild \
+		--re-ignore '(^|/)(html|man[0-9]|pdf|txt|Makefile)(/|$$)' . sphinx/html
+
 .PHONY: html
 html: $(DOC_HTML) html/index.html
 
@@ -76,7 +90,7 @@ pdf: $(DOC_PDF)
 clean: clean-man-pages
 	$(MAKE) -C figs clean
 	rm -rf .word_count *.aux *.dvi *.bbl *.blg *.glo *.idx *~
-	rm -rf *.ilg *.log *.ind *.toc *.bak *.tmp core
+	rm -rf *.ilg *.log *.ind *.toc *.bak *.tmp core .sphinx
 	rm -rf html txt pdf sphinx/html
 
 .PHONY: distclean
