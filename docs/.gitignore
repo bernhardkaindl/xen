@@ -1,3 +1,4 @@
+/.sphinx/
 /figs/*.png
 /html/
 /man/xl.cfg.5.pod
