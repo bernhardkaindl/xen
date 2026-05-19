@@ -16,13 +16,13 @@
 #include <xen/radix-tree.h>
 #include <xen/multicall.h>
 #include <xen/nospec.h>
+#include <asm/current.h>
 #include <xen/seqcount.h>
 #include <xen/tasklet.h>
 #include <xen/mm.h>
 #include <xen/smp.h>
 #include <xen/perfc.h>
 #include <asm/atomic.h>
-#include <asm/current.h>
 #include <xen/vpci.h>
 #include <xen/wait.h>
 #include <public/xen.h>
