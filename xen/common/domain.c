@@ -1319,7 +1319,10 @@ int domain_kill(struct domain *d)
         rspin_barrier(&d->domain_lock);
         argo_destroy(d);
         vnuma_destroy(d->vnuma);
-        domain_set_outstanding_pages(d, 0);
+        /* Release all outstanding claims of the domain. */
+        domain_set_claim_entries(d, 1, &(xen_memory_claim_t){
+            .target = XEN_DOMCTL_CLAIM_MEMORY_HOST, .pages = 0,
+        });
         /* fallthrough */
     case DOMDYING_dying:
         rc = domain_teardown(d);

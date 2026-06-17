@@ -1070,6 +1070,34 @@ int xc_domain_remove_from_physmap(xc_interface *xch,
     return xc_memory_op(xch, XENMEM_remove_from_physmap, &xrfp, sizeof(xrfp));
 }
 
+/* Set or get memory claims for a domain. */
+int xc_domain_claim_memory(xc_interface *xch, uint32_t domid, uint32_t mode,
+                           uint32_t *nr_entries, xen_memory_claim_t *claim_set)
+{
+    struct xen_domctl domctl = {};
+    DECLARE_HYPERCALL_BOUNCE(claim_set, *nr_entries * sizeof(*claim_set),
+                             XC_HYPERCALL_BUFFER_BOUNCE_BOTH);
+    int ret;
+
+    if ( xc_hypercall_bounce_pre(xch, claim_set) )
+        return -1;
+
+    domctl.cmd = XEN_DOMCTL_claim_memory;
+    domctl.domain = domid;
+    domctl.u.claim_memory.mode = mode;
+    domctl.u.claim_memory.nr_entries = *nr_entries;
+    set_xen_guest_handle(domctl.u.claim_memory.claim_set, claim_set);
+
+    ret = do_domctl(xch, &domctl);
+
+    *nr_entries = domctl.u.claim_memory.nr_entries;
+
+    xc_hypercall_bounce_post(xch, claim_set);
+
+    return ret;
+}
+
+/* XENMEM_claim_pages is deprecated; use xc_domain_claim_memory() instead. */
 int xc_domain_claim_pages(xc_interface *xch,
                                uint32_t domid,
                                unsigned long nr_pages)

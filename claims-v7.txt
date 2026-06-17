@@ -1,0 +1,76 @@
+xen/mm: Introduce NUMA-aware memory claim sets
+
+Xen's existing memory claim interface can account only for a host-wide
+amount of memory for a domain. That is not enough for toolstacks that need
+to claim memory from particular NUMA nodes before building the domain.
+
+This series extends Xen's memory claim design to support claim sets with
+NUMA-node-specific entries. Roger Pau Monné summarized the core design
+requirement as:
+
+   Ideally, we would need to introduce a new hypercall that allows
+   making claims from multiple nodes in a single locked region, as to
+   ensure success or failure in an atomic way.
+
+A claim set can contain multiple node-specific claims and a host-wide
+claim for memory that may come from any NUMA node. The new domctl
+installs the full claim set atomically, and the allocator is updated
+so that claim checks and claim consumption are NUMA-node aware.
+
+The components are:
+
+1. installing multi-node claim sets atomically,
+2. protecting claimed pages from other claim requests and allocations, and
+3. redeeming claims in a NUMA-aware manner when satisfying allocations
+   for domains with claims.
+
+Legacy XENMEM_claim_pages behaviour is preserved; the legacy interface
+is deprecated and superseded by XEN_DOMCTL_claim_memory.
+
+This update addresses v6 review comments, refactors claim redemption,
+and adds a GET operation for inspecting a domain's claim set.
+
+Only one preparatory patch remains in this version, followed by the main
+feature and finally the OCaml bindings.
+
+The updated design document for this series was submitted on May 5:
+https://lists.xen.org/archives/html/xen-devel/2026-05/msg00163.html
+Rendered version: https://xen.kaindl.dev/claims-v7-design/designs/claims/
+
+The core operational principles have been validated in the following ways:
+
+1. A comprehensive functional system test suite running in Dom0,
+   which will follow this submission.
+
+2. A native integration test environment for the Xen page allocator,
+   providing a configurable synthetic Xen heap for each test case,
+   which will follow this submission as well.
+
+3. A set of high-level functional integration tests and performance
+   tests, executed as part of end-to-end product deployment validation.
+
+4. Validation in a customer's application performance lab to confirm
+   performance expectations. This was done on predecessor code sharing
+   the same design; that earlier code only supported single-node claims.
+
+Best regards,
+Bernhard
+
+Changes since v6:
+- Incorporated v6 review feedback.
+- Restored claim invariants as needed after offlining pages.
+- Addressed Jan's point about the ambiguity of the term "global":
+   See https://lists.xen.org/archives/html/xen-devel/2026-05/msg00026.html
+- Use "host-wide claims", with "host_claims" and "node_claims" as shorthands.
+
+In addition, I adjusted helper names to make the domain scope explicit
+and to keep the "release", "set", and "get" operations named consistently:
+
+  * deduct_global_claims()         -> domain_release_host_claims()
+  * deduct_node_claims()           -> domain_release_node_claims()
+  * domain_set_outstanding_pages() -> domain_set_claim_entries()
+  * domain_get_claim_entries() was added.
+
+- The new domain_set_claim_entries() helper also handles the legacy
+  XENMEM_claim_pages interface for backward compatibility, replacing
+  domain_set_outstanding_pages().

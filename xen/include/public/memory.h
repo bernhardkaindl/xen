@@ -569,6 +569,8 @@ DEFINE_XEN_GUEST_HANDLE(xen_mem_sharing_op_t);
  * for 10, only 7 additional pages are claimed.
  *
  * Caller must be privileged or the hypercall fails.
+ *
+ * Note: This hypercall is superseded by XEN_DOMCTL_claim_memory.
  */
 #define XENMEM_claim_pages                  24
 

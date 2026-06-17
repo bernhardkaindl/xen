@@ -372,6 +372,16 @@ external domain_deassign_device: handle -> domid -> (int * int * int * int) -> u
 external domain_test_assign_device: handle -> domid -> (int * int * int * int) -> bool
   = "stub_xc_domain_test_assign_device"
 
+(* OCaml binding for xc_domain_claim_memory() to claim memory for a domain *)
+
+type claim =
+  {
+    pages: int64; (* Number of pages to claim *)
+    node: int32;  (* NUMA node ID, or -1 for host-wide claims *)
+  }
+external domain_claim_memory: handle -> domid -> claim array -> unit
+  = "stub_xc_domain_claim_memory"
+
 external version: handle -> version = "stub_xc_version_version"
 external version_compile_info: handle -> compile_info
   = "stub_xc_version_compile_info"

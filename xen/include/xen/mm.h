@@ -72,6 +72,7 @@
 #include <public/memory.h>
 
 struct page_info;
+struct xen_memory_claim;
 
 extern bool using_static_heap;
 
@@ -131,7 +132,10 @@ int populate_pt_range(unsigned long virt, unsigned long nr_mfns);
 /* Claim handling */
 unsigned long __must_check domain_adjust_tot_pages(struct domain *d,
     long pages);
-int domain_set_outstanding_pages(struct domain *d, unsigned long pages);
+int domain_set_claim_entries(struct domain *d, uint32_t nr_entries,
+                             const struct xen_memory_claim *claim_set);
+int domain_get_claim_entries(struct domain *d, uint32_t *nr_entries,
+                             struct xen_memory_claim *claim_set);
 void get_outstanding_claims(uint64_t *free_pages, uint64_t *outstanding_pages);
 
 /* Domain suballocator. These functions are *not* interrupt-safe.*/

@@ -51,6 +51,57 @@ static int xenctl_bitmap_to_nodemask(nodemask_t *nodemask,
                                    MAX_NUMNODES);
 }
 
+/* Set or get memory claims for a domain. */
+static int claim_memory(struct domain *d,
+                        struct xen_domctl_claim_memory *uinfo, bool *copyback)
+{
+    xen_memory_claim_t *entries;
+    int rc = -EFAULT;
+
+    /* Reject LLC coloring; alloc_color_heap_page() does not handle claims. */
+    if ( llc_coloring_enabled )
+        return -EOPNOTSUPP;
+
+    switch ( uinfo->mode )
+    {
+    case XEN_DOMCTL_CLAIM_MEMORY_SET:
+        if ( !uinfo->nr_entries )
+            return -EINVAL;
+        if ( uinfo->nr_entries > MAX_NUMNODES + 1 )
+            return -E2BIG;
+        break;
+    case XEN_DOMCTL_CLAIM_MEMORY_GET:
+        if ( uinfo->nr_entries > MAX_NUMNODES + 1 )
+            uinfo->nr_entries = MAX_NUMNODES + 1;
+        break;
+    default:
+        return -EOPNOTSUPP;
+    }
+    if ( d->is_dying )
+        return -ESRCH;
+
+    entries = xmalloc_array(xen_memory_claim_t, uinfo->nr_entries);
+    if ( entries == NULL )
+        return -ENOMEM;
+
+    switch ( uinfo->mode )
+    {
+    case XEN_DOMCTL_CLAIM_MEMORY_SET:
+        if ( !copy_from_guest(entries, uinfo->claim_set, uinfo->nr_entries) )
+            rc = domain_set_claim_entries(d, uinfo->nr_entries, entries);
+        break;
+    case XEN_DOMCTL_CLAIM_MEMORY_GET:
+        rc = domain_get_claim_entries(d, &uinfo->nr_entries, entries);
+        *copyback = true;
+        if ( !rc && copy_to_guest(uinfo->claim_set, entries,
+                                  uinfo->nr_entries) )
+            rc = -EFAULT;
+        break;
+    }
+    xfree(entries);
+    return rc;
+}
+
 void getdomaininfo(struct domain *d, struct xen_domctl_getdomaininfo *info)
 {
     struct vcpu *v;
@@ -862,6 +913,12 @@ long do_domctl(XEN_GUEST_HANDLE_PARAM(xen_domctl_t) u_domctl)
         ret = get_domain_state(&op->u.get_domain_state, d, &op->domain);
         if ( !ret )
             copyback = true;
+        break;
+
+    case XEN_DOMCTL_claim_memory:
+        ret = xsm_claim_pages(XSM_PRIV, d);
+        if ( !ret )
+            ret = claim_memory(d, &op->u.claim_memory, &copyback);
         break;
 
     default:

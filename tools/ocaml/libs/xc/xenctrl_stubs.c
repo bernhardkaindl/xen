@@ -1435,6 +1435,56 @@ CAMLprim value stub_xc_watchdog(value xch_val, value domid, value timeout)
 	CAMLreturn(Val_int(ret));
 }
 
+/* OCaml binding for xc_domain_claim_memory() to claim memory for a domain */
+CAMLprim value stub_xc_domain_claim_memory(value xch_val, value domid,
+                                           value claim_set)
+{
+	CAMLparam3(xch_val, domid, claim_set);
+	xc_interface *xch = xch_of_val(xch_val);
+	mlsize_t nr_entries = Wosize_val(claim_set);
+	uint32_t c_domid = (uint32_t)Int_val(domid);
+	uint32_t c_nr_entries = (uint32_t)nr_entries;
+	xen_memory_claim_t *c_claim_set;
+
+	if (!nr_entries)
+		caml_invalid_argument("domain_claim_memory: claim_set cannot be empty");
+
+	c_claim_set = calloc(c_nr_entries, sizeof(*c_claim_set));
+	if (c_claim_set == NULL)
+		caml_raise_out_of_memory();
+
+	/* The entries of the claim_set are claim entries with {pages, node} */
+	for (mlsize_t i = 0; i < nr_entries; i++) {
+		value claim_entry = Field(claim_set, i);
+		int64_t pages = Int64_val(Field(claim_entry, 0));
+		int32_t node = Int32_val(Field(claim_entry, 1));
+
+		if (pages < 0 || node < -1) {
+			free(c_claim_set);
+			caml_invalid_argument("domain_claim_memory: invalid pages or node");
+		}
+		c_claim_set[i] = (xen_memory_claim_t) {
+			.pages = (uint64_t)pages,
+			.target = (node == -1)
+				? XEN_DOMCTL_CLAIM_MEMORY_HOST
+				: (uint32_t)node
+		};
+	}
+
+	/* May have to wait for the domctl lock, release the OCaml runtime lock. */
+	caml_enter_blocking_section();
+	int retval = xc_domain_claim_memory(xch, c_domid,
+					    XEN_DOMCTL_CLAIM_MEMORY_SET,
+					    &c_nr_entries, c_claim_set);
+	caml_leave_blocking_section();
+
+	free(c_claim_set);
+	if (retval < 0)
+		failwith_xc(xch);
+
+	CAMLreturn(Val_unit);
+}
+
 /*
  * Local variables:
  *  indent-tabs-mode: t

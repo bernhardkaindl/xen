@@ -2659,6 +2659,17 @@ int xc_domain_set_llc_colors(xc_interface *xch, uint32_t domid,
                              const uint32_t *llc_colors,
                              uint32_t num_llc_colors);
 
+/*
+ * Set or get memory claims for a domain.
+ *
+ * For XEN_DOMCTL_CLAIM_MEMORY_GET, callers may pass *nr_entries == 0 and
+ * claim_set == NULL to query the number of records needed. In that case the
+ * call fails with ERANGE and updates *nr_entries with the required count.
+ */
+int xc_domain_claim_memory(xc_interface *xch, uint32_t domid, uint32_t mode,
+                           uint32_t *nr_entries,
+                           xen_memory_claim_t *claim_set);
+
 #if defined(__arm__) || defined(__aarch64__)
 int xc_dt_overlay(xc_interface *xch, void *overlay_fdt,
                   uint32_t overlay_fdt_size, uint8_t overlay_op);
