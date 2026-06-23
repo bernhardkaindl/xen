@@ -1991,7 +1991,8 @@ static int cf_check svm_msr_write_intercept(
         break;
 
     case MSR_K8_VM_HSAVE_PA:
-        if ( (msr_content & ~PAGE_MASK) || msr_content > 0xfd00000000ULL )
+        if ( (msr_content & ~PAGE_MASK) ||
+             (msr_content >> d->arch.cpuid->extd.maxphysaddr) )
             goto gpf;
         nsvm->ns_msr_hsavepa = msr_content;
         break;
