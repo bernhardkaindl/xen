@@ -2124,9 +2124,9 @@ svm_vmexit_do_vmrun(struct cpu_user_regs *regs,
         return;
     }
 
-    if ( !nestedsvm_vmcb_map(v, vmcbaddr) )
+    if ( !nestedsvm_vmcb_map(v, vmcbaddr) ||
+         !vcpu_nestedsvm(v).ns_msr_hsavepa )
     {
-        gdprintk(XENLOG_ERR, "VMRUN: mapping vmcb failed, injecting #GP\n");
         hvm_inject_hw_exception(X86_EXC_GP, 0);
         return;
     }
