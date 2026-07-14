@@ -1821,6 +1821,8 @@ static int cf_check svm_msr_read_intercept(
         break;
 
     case MSR_K8_VM_HSAVE_PA:
+        if ( !d->arch.cpuid->extd.svm )
+            goto gpf;
         *msr_content = nsvm->ns_msr_hsavepa;
         break;
 
@@ -1991,7 +1993,7 @@ static int cf_check svm_msr_write_intercept(
         break;
 
     case MSR_K8_VM_HSAVE_PA:
-        if ( (msr_content & ~PAGE_MASK) ||
+        if ( (msr_content & ~PAGE_MASK) || !d->arch.cpuid->extd.svm ||
              (msr_content >> d->arch.cpuid->extd.maxphysaddr) )
             goto gpf;
         nsvm->ns_msr_hsavepa = msr_content;
@@ -2124,9 +2126,9 @@ svm_vmexit_do_vmrun(struct cpu_user_regs *regs,
         return;
     }
 
-    if ( !nestedsvm_vmcb_map(v, vmcbaddr) )
+    if ( !nestedsvm_vmcb_map(v, vmcbaddr) ||
+         !vcpu_nestedsvm(v).ns_msr_hsavepa ) /* The APM says 0 is invalid */
     {
-        gdprintk(XENLOG_ERR, "VMRUN: mapping vmcb failed, injecting #GP\n");
         hvm_inject_hw_exception(X86_EXC_GP, 0);
         return;
     }
