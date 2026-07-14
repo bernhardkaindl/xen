@@ -763,11 +763,19 @@ UNLIKELY_END(exit_cr3)
          * When the CPU pushed this exception frame, it zero-extended eflags.
          * For an IST exit, SPEC_CTRL_EXIT_TO_XEN stashed shadow copies of
          * scf and ver_sel above eflags, as we can't use any GPRs,
-         * and we're at a random place on the stack, not in a CPUFINFO block.
+         * and we're at a random place on the stack, not in a CPUINFO block.
+         *
+         * This is not a normal exit path with %rsp pointing at
+         * CPUINFO_error_code, so SPEC_CTRL_COND_VERW's default offsets would
+         * feed a bogus selector to VERW.  Pop ev/ec first so %rsp is back at
+         * EFRAME_rip, then VERW using the stashed shadow scf/sel.
          */
-        SPEC_CTRL_COND_VERW     /* Req: %rsp=eframe                    Clob: efl */
-
         add     $8, %rsp        /* Pop ev/ec off the stack */
+
+        SPEC_CTRL_COND_VERW \
+            scf=STK_REL(EFRAME_shadow_scf, EFRAME_rip), \
+            sel=STK_REL(EFRAME_shadow_sel, EFRAME_rip)
+
         iretq
 END(restore_all_xen)
 
