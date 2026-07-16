@@ -1,0 +1,43 @@
+%% SPDX-License-Identifier: CC-BY-4.0
+classDiagram
+class do_domctl["Args passed to <tt>do_domctl()</tt>"] {
+    +uint32_t cmd: XEN_DOMCTL_claim_memory
+    +uint32_t domain: Domain ID
+    +xen_domctl_claim_memory: Claim set
+}
+class xen_domctl_claim_memory["Claim set passed to <tt>do_domctl()</tt>"] {
+    +memory_claim_t* claims: Claim entries
+    +uint32_t nr_claims: Number of claim entries
+    +uint32_t pad: always 0 for future use
+}
+class memory_claim_t["Claim set: Array of claim entries"] {
+    +pages: Pages to claim
+    +node: Claim selector or node
+    +pad: always 0 for future use
+}
+class xc_domain_claim_memory["xc_domain_claim_memory()"] {
+    +xc_interface* xch
+    +uint32_t domid
+    +uint32_t nr_claims
+    +memory_claim_t* claims
+}
+class global_claimss["Global and Node claim counters"] {
+    global free = total_avail_pages - outstanding_claims
+    node free = node_avail_pages[node] - node_outstanding_claims[node]
+}
+class claim["XEN_DOMCTL_claim_memory"] {
+    +domain_set_outstanding_pages()
+    +domain_set_node_claims()
+}
+class domain["Claim fields in struct domain"] {
+    +global_claims - Global claims of the domain
+    +node_claims - Sum of claims on all nodes of the domain
+    +claims[] - Array of claims on specific nodes
+}
+xen_domctl_claim_memory o--> memory_claim_t
+do_domctl o--> xen_domctl_claim_memory
+xc_domain_claim_memory ..> do_domctl: passes<br> <tt>Claim set</tt>
+xc_domain_claim_memory ..> claim : calls <tt>do_domctl()</tt>
+claim ..> xen_domctl_claim_memory : reads
+claim ..> domain : sets
+domain ..> global_claimss : updates outstanding claims

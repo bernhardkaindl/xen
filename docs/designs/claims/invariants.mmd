@@ -1,0 +1,36 @@
+%% SPDX-License-Identifier: CC-BY-4.0
+%% Claim variables and their Invariants
+flowchart TD
+
+subgraph "Access&nbsp;under&nbsp;the&nbsp;<tt><b>heap_lock</b></tt>&nbsp;only:"
+   direction TB
+   Memory_of_Nodes --"&nbsp; Contribute to &nbsp;"--> Overall_Memory
+   Overall_Memory --"&nbsp; Available to &nbsp;"--> Memory_of_Domains
+end
+
+subgraph Memory_of_Nodes["Per-node claims and available memory"]
+    direction LR
+    per_node_claims -->|"&nbsp; less or equal to &nbsp;"| node_avail_pages
+    per_node_claims["Claims on the node:
+                     <tt>node_outstanding_claims[n]"]
+    node_avail_pages["Available pages on the node:
+                      <tt>node_avail_pages[n]"]
+end
+
+subgraph Overall_Memory["Overall claims and available memory"]
+    direction LR
+    outstanding -->|"&nbsp; less or equal to &nbsp;"| avail_pages
+    outstanding["Total claims on the host:
+                 <tt>outstanding_claims"]
+    avail_pages["Available pages on the host:
+                 <tt>total_avail_pages"]
+end
+
+subgraph Memory_of_Domains["Per-domain&nbsp;claims and available memory"]
+    direction LR
+    claims -->|"&nbsp; less or equal to &nbsp;"| available_memory_for_domains
+    claims["Claims of the domain:<br><tt>d->claims[n]
+                                         d->global_claims"]
+    available_memory_for_domains["Available pages:<br><tt>node_avail_pages[n]
+                                                          total_avail_pages"]
+end
