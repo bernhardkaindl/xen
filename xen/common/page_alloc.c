@@ -519,6 +519,15 @@ unsigned long domain_adjust_tot_pages(struct domain *d, long pages)
     return d->tot_pages;
 }
 
+static void domain_release_outstanding_pages(struct domain *d,
+                                             unsigned long pages)
+{
+    ASSERT(spin_is_locked(&heap_lock));
+
+    outstanding_claims -= pages;
+    d->outstanding_pages -= pages;
+}
+
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 {
     int ret = -ENOMEM;
@@ -536,8 +545,7 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
     /* pages==0 means "unset" the claim. */
     if ( pages == 0 )
     {
-        outstanding_claims -= d->outstanding_pages;
-        d->outstanding_pages = 0;
+        domain_release_outstanding_pages(d, d->outstanding_pages);
         ret = 0;
         goto out;
     }
@@ -1073,8 +1081,7 @@ static struct page_info *alloc_heap_pages(
         unsigned long outstanding = min(d->outstanding_pages + 0UL, request);
 
         BUG_ON(outstanding > outstanding_claims);
-        outstanding_claims -= outstanding;
-        d->outstanding_pages -= outstanding;
+        domain_release_outstanding_pages(d, outstanding);
     }
 
     check_low_mem_virq();
