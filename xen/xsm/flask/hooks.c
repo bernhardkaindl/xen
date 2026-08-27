@@ -692,6 +692,9 @@ static int cf_check flask_domctl(struct domain *d, struct xen_domctl *op)
         ASSERT_UNREACHABLE();
         return -EILSEQ;
 
+    case XEN_DOMCTL_claim_memory:
+        return flask_claim_pages(d);
+
     case XEN_DOMCTL_destroydomain:
         return current_has_perm(d, SECCLASS_DOMAIN, DOMAIN__DESTROY);
 

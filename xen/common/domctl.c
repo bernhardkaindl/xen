@@ -51,6 +51,43 @@ static int xenctl_bitmap_to_nodemask(nodemask_t *nodemask,
                                    MAX_NUMNODES);
 }
 
+static int claim_memory(struct domain *d,
+                        const struct xen_domctl_claim_memory *op)
+{
+    xen_domctl_claim_memory_entry_t *claim_set;
+    claim_request_t req = {0};
+    int rc;
+
+    if ( op->mode != XEN_DOMCTL_CLAIM_MEMORY_SET )
+        return -EOPNOTSUPP;
+
+    /* Allow one entry for every node plus one host-wide entry. */
+    if ( op->nr_entries > MAX_NUMNODES + 1 )
+        return -E2BIG;
+
+    if ( d->is_dying )
+        return -ESRCH;
+
+    if ( llc_coloring_enabled )
+        return -EOPNOTSUPP;
+
+    req.nr_entries = op->nr_entries;
+    if ( !op->nr_entries )
+        return domain_set_claim_entries(d, &req);
+
+    claim_set = xzalloc_array(xen_domctl_claim_memory_entry_t, op->nr_entries);
+    if ( !claim_set )
+        return -ENOMEM;
+
+    req.claim = claim_set;
+    rc = copy_from_guest(claim_set, op->claim_set, op->nr_entries)
+         ? -EFAULT : domain_set_claim_entries(d, &req);
+
+    xfree(claim_set);
+
+    return rc;
+}
+
 void getdomaininfo(struct domain *d, struct xen_domctl_getdomaininfo *info)
 {
     struct vcpu *v;
@@ -598,6 +635,10 @@ long do_domctl(XEN_GUEST_HANDLE_PARAM(xen_domctl_t) u_domctl)
 
     switch ( op->cmd )
     {
+
+    case XEN_DOMCTL_claim_memory:
+        ret = claim_memory(d, &op->u.claim_memory);
+        break;
 
     case XEN_DOMCTL_setvcpucontext:
     {

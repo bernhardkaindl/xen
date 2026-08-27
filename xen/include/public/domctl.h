@@ -1279,6 +1279,39 @@ struct xen_domctl_get_domain_state {
     uint64_t unique_id;      /* Unique domain identifier. */
 };
 
+struct xen_domctl_memclaim_entry {
+    uint64_aligned_t pages; /* Outstanding pages to claim. */
+    uint32_t target;        /* NUMA node or special target constant. */
+    uint32_t pad;           /* Must be zero. */
+};
+typedef struct xen_domctl_memclaim_entry xen_domctl_claim_memory_entry_t;
+DEFINE_XEN_GUEST_HANDLE(xen_domctl_claim_memory_entry_t);
+
+/* Host-wide claim, not tied to a NUMA node. */
+#define XEN_DOMCTL_CLAIM_MEMORY_HOST 0x80000000U
+
+/*
+ * XEN_DOMCTL_claim_memory
+ *
+ * Atomically replace a domain's outstanding memory claims.  Failed requests
+ * leave the existing claims unchanged.  Each entry reserves pages either on
+ * one online NUMA node or host-wide.  Targets must be unique, with at most one
+ * host-wide entry.  Zero-page entries are valid and may cancel claims for
+ * individual targets.  An empty array releases all existing claims and the
+ * claim_set handle is ignored.
+ *
+ * The total of all entries plus the domain's allocated pages must not exceed
+ * its maximum page count.  Claims are consumed by later allocations to the
+ * domain.
+ */
+struct xen_domctl_claim_memory {
+    /* IN: array of claim entries. */
+    XEN_GUEST_HANDLE_64(xen_domctl_claim_memory_entry_t) claim_set;
+    uint32_t nr_entries;             /* IN: number of array entries. */
+    uint32_t mode;                   /* IN: operation on the claim set. */
+#define XEN_DOMCTL_CLAIM_MEMORY_SET 0U
+};
+
 struct xen_domctl {
 /* Stable domctl ops: interface_version is required to be 0.  */
     uint32_t cmd;
@@ -1371,6 +1404,7 @@ struct xen_domctl {
 #define XEN_DOMCTL_gsi_permission                88
 #define XEN_DOMCTL_set_llc_colors                89
 #define XEN_DOMCTL_get_domain_state              90 /* stable interface */
+#define XEN_DOMCTL_claim_memory                  91
 #define XEN_DOMCTL_gdbsx_guestmemio            1000
 #define XEN_DOMCTL_gdbsx_pausevcpu             1001
 #define XEN_DOMCTL_gdbsx_unpausevcpu           1002
@@ -1439,6 +1473,7 @@ struct xen_domctl {
 #endif
         struct xen_domctl_set_llc_colors    set_llc_colors;
         struct xen_domctl_get_domain_state  get_domain_state;
+        struct xen_domctl_claim_memory      claim_memory;
         uint8_t                             pad[128];
     } u;
 };
