@@ -428,11 +428,7 @@ struct domain
     /* Pages claimed but not possessed, protected by global heap_lock. */
     unsigned int     outstanding_pages;
     unsigned int     node_claims;       /* Sum of per-node claims. */
-    /*
-     * Keep this inline to avoid allocation failures when claims are
-     * installed.  The domain structure has sufficient space in its page.
-     */
-    unsigned int     claims[MAX_NUMNODES]; /* Per-NUMA-node claims. */
+    unsigned int     *claims;           /* Per-NUMA-node claims. */
     unsigned int     max_pages;         /* maximum value for domain_tot_pages() */
     unsigned int     extra_pages;       /* pages not included in domain_tot_pages() */
 

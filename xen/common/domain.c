@@ -766,6 +766,9 @@ static void _domain_destroy(struct domain *d)
 
     domid_free(d->domain_id);
 
+    if ( d->claims )
+        xfree(d->claims)
+
     free_domain_struct(d);
 }
 
