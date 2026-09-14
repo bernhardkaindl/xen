@@ -2222,6 +2222,30 @@ out:
 
     return ret;
 }
+
+/* Set memory claims for a domain. */
+int xc_domain_set_memory_claims(xc_interface *xch, uint32_t domid, uint32_t nr,
+                                xen_domctl_memory_claim_t *claims)
+{
+    struct xen_domctl domctl = {};
+    DECLARE_HYPERCALL_BOUNCE(claims, nr * sizeof(*claims),
+                             XC_HYPERCALL_BUFFER_BOUNCE_BOTH);
+    int ret;
+
+    if ( xc_hypercall_bounce_pre(xch, claims) )
+        return -1;
+
+    domctl.cmd = XEN_DOMCTL_set_memory_claims;
+    domctl.domain = domid;
+    domctl.u.memory_claims.nr_entries = nr;
+    set_xen_guest_handle(domctl.u.memory_claims.claim_set, claims);
+
+    ret = do_domctl(xch, &domctl);
+
+    xc_hypercall_bounce_post(xch, claims);
+
+    return ret;
+}
 /*
  * Local variables:
  * mode: C
