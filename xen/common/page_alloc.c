@@ -490,6 +490,9 @@ static DEFINE_SPINLOCK(heap_lock);
 /* Total outstanding claims by all domains */
 static unsigned long outstanding_claims;
 
+/* Sum of outstanding claims on each node. */
+static unsigned long node_claimed_pages[MAX_NUMNODES];
+
 static unsigned long avail_heap_pages(
     unsigned int zone_lo, unsigned int zone_hi, unsigned int node)
 {
@@ -914,6 +917,17 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
      */
     for ( ; ; )
     {
+        unsigned long available;
+
+        available = node_avail_pages[node] - node_claimed_pages[node];
+
+        /* A domain may allocate from its own node reservation. */
+        if ( d && !(memflags & MEMF_no_refcount) && d->claims )
+            available += d->claims[node];
+
+        if ( available < (1UL << order) )
+            goto next_node; /* If less than required, skip to the next node */
+
         zone = zone_hi;
         do {
             /* Check if target node can support the allocation. */
@@ -943,6 +957,7 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
             }
         } while ( zone-- > zone_lo ); /* careful: unsigned zone may wrap */
 
+     next_node:
         if ( (memflags & MEMF_exact_node) && req_node != NUMA_NO_NODE )
             return NULL;
 
