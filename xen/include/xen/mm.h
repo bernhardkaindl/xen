@@ -82,6 +82,7 @@ struct claim_set {
 typedef struct claim_set claim_set_t;
 
 int domain_set_claim_entries(struct domain *d, claim_set_t *request);
+int domain_get_claim_entries(struct domain *d, claim_set_t *claims);
 
 extern bool using_static_heap;
 

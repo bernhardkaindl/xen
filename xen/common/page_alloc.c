@@ -514,6 +514,43 @@ static unsigned long avail_heap_pages(
     return free_pages;
 }
 
+/* Get claim entries for the outstanding claims of a domain. */
+int domain_get_claim_entries(struct domain *d, claim_set_t *claims)
+{
+    unsigned int needed_entries = 1, max_entries = claims->nr_entries;
+    nodeid_t node;
+
+    /* If max_entries is 0, only the number of needed entries is returned. */
+    if ( max_entries )
+    {
+        memset(claims->claim, 0, sizeof(*claims->claim) * max_entries);
+        claims->claim[0].target = XEN_DOMCTL_CLAIM_MEMORY_HOST;
+    }
+
+    spin_lock(&heap_lock);
+    if ( max_entries )
+    {
+        ASSERT(d->outstanding_pages >= d->node_claims);
+        claims->claim[0].pages = d->outstanding_pages - d->node_claims;
+    }
+
+    for_each_online_node ( node )
+    {
+        if ( !d->claims || !d->claims[node] )
+            continue;
+
+        if ( needed_entries < max_entries )
+        {
+            claims->claim[needed_entries].target = node;
+            claims->claim[needed_entries].pages = d->claims[node];
+        }
+        needed_entries++;
+    }
+    spin_unlock(&heap_lock);
+    claims->nr_entries = needed_entries;
+    return needed_entries <= max_entries ? 0 : -ERANGE;
+}
+
 unsigned long domain_adjust_tot_pages(struct domain *d, long pages)
 {
     ASSERT(rspin_is_locked(&d->page_alloc_lock));

@@ -1291,7 +1291,7 @@ DEFINE_XEN_GUEST_HANDLE(xen_domctl_memory_claim_t);
 #define XEN_DOMCTL_CLAIM_MEMORY_HOST 0x80000000U
 
 /*
- * XEN_DOMCTL_set_memory_claims
+ * XEN_DOMCTL_set_memory_claims / XEN_DOMCTL_get_memory_claims
  *
  * Atomically replace a domain's outstanding memory claims.  Failed requests
  * leave the existing claims unchanged.  Each entry reserves pages either on
@@ -1305,9 +1305,10 @@ DEFINE_XEN_GUEST_HANDLE(xen_domctl_memory_claim_t);
  * domain.
  */
 struct xen_domctl_memory_claims {
-    /* IN: array of claim entries. */
+    /* set: IN: array of claim entries, get: OUT: array of claim entries */
     XEN_GUEST_HANDLE_64(xen_domctl_memory_claim_t) claim_set;
-    uint32_t nr_entries;             /* IN: number of array entries. */
+    /* set: IN: number of array entries, get: OUT: number of array entries. */
+    uint32_t nr_entries;
 };
 
 struct xen_domctl {
@@ -1403,6 +1404,7 @@ struct xen_domctl {
 #define XEN_DOMCTL_set_llc_colors                89
 #define XEN_DOMCTL_get_domain_state              90 /* stable interface */
 #define XEN_DOMCTL_set_memory_claims             91
+#define XEN_DOMCTL_get_memory_claims             92
 #define XEN_DOMCTL_gdbsx_guestmemio            1000
 #define XEN_DOMCTL_gdbsx_pausevcpu             1001
 #define XEN_DOMCTL_gdbsx_unpausevcpu           1002
