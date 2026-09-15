@@ -531,6 +531,73 @@ static void domain_release_outstanding_pages(struct domain *d,
     d->outstanding_pages -= pages;
 }
 
+/* Release host-wide claims without consuming a node reservation. */
+static unsigned long domain_release_host_claims(struct domain *d,
+                                                unsigned long pages)
+{
+    unsigned long claims;
+
+    ASSERT(spin_is_locked(&heap_lock));
+    ASSERT(d->outstanding_pages >= d->node_claims);
+    claims = d->outstanding_pages - d->node_claims;
+    if ( pages > claims )
+        pages = claims;
+
+    domain_release_outstanding_pages(d, pages);
+
+    return pages;
+}
+
+/* Keep the domain and system-wide node counters in step. */
+static unsigned long domain_release_node_claims(struct domain *d,
+                                                nodeid_t node,
+                                                unsigned long pages)
+{
+    ASSERT(spin_is_locked(&heap_lock));
+
+    if ( !d->node_claims )
+        return 0;
+    if ( pages > d->claims[node] )
+        pages = d->claims[node];
+
+    ASSERT(node_claimed_pages[node] >= pages);
+    ASSERT(d->node_claims >= pages);
+
+    node_claimed_pages[node] -= pages;
+    d->claims[node] -= pages;
+    d->node_claims -= pages;
+    domain_release_outstanding_pages(d, pages);
+
+    return pages;
+}
+
+/*
+ * Recall node-specific claims until @pages have been released.  This keeps
+ * domain_tot_pages(d) + d->outstanding_pages within d->max_pages when an
+ * allocation cannot be redeemed entirely from its node's claim.
+ */
+static unsigned long domain_recall_node_claims(struct domain *d,
+                                               unsigned long pages)
+{
+    unsigned long recalled = 0;
+    nodeid_t node;
+
+    ASSERT(spin_is_locked(&heap_lock));
+    /* Node offlining must release claims before changing node_online_map. */
+    for_each_online_node ( node )
+    {
+        unsigned long count;
+
+        if ( recalled == pages || !d->node_claims )
+            break;
+
+        count = domain_release_node_claims(d, node, pages - recalled);
+        recalled += count;
+    }
+
+    return recalled;
+}
+
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 {
     int ret = -ENOMEM;
@@ -1096,7 +1163,13 @@ static struct page_info *alloc_heap_pages(
         unsigned long outstanding = min(d->outstanding_pages + 0UL, request);
 
         BUG_ON(outstanding > outstanding_claims);
-        domain_release_outstanding_pages(d, outstanding);
+        /* Preserve other node guarantees: consume the local claim first. */
+        outstanding -= domain_release_node_claims(d, node, outstanding);
+        /* Host-wide claims are not tied to another node's guarantee. */
+        outstanding -= domain_release_host_claims(d, outstanding);
+        /* Keep allocated pages plus claims within the domain's limit. */
+        outstanding -= domain_recall_node_claims(d, outstanding);
+        ASSERT(!outstanding);
     }
 
     check_low_mem_virq();
