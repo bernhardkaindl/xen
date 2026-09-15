@@ -72,6 +72,16 @@
 #include <public/memory.h>
 
 struct page_info;
+struct xen_domctl_memclaim_entry;
+struct claim_set {
+    unsigned int nr_entries;
+    struct xen_domctl_memclaim_entry *claim;
+    uint64_t total;
+    uint64_t node_pages;
+};
+typedef struct claim_set claim_set_t;
+
+int domain_set_claim_entries(struct domain *d, claim_set_t *request);
 
 extern bool using_static_heap;
 
