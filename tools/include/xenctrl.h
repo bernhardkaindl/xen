@@ -2667,6 +2667,9 @@ int xc_domain_set_llc_colors(xc_interface *xch, uint32_t domid,
 /* Set memory claims for a domain */
 int xc_domain_set_memory_claims(xc_interface *xch, uint32_t domid, uint32_t nr,
                                 xen_domctl_memory_claim_t *claims);
+/* Get memory claims for a domain */
+int xc_domain_get_memory_claims(xc_interface *xch, uint32_t domid, uint32_t *nr,
+                                xen_domctl_memory_claim_t *claims);
 
 #if defined(__arm__) || defined(__aarch64__)
 int xc_dt_overlay(xc_interface *xch, void *overlay_fdt,

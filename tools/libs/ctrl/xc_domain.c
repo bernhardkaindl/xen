@@ -2223,28 +2223,45 @@ out:
     return ret;
 }
 
-/* Set memory claims for a domain. */
-int xc_domain_set_memory_claims(xc_interface *xch, uint32_t domid, uint32_t nr,
-                                xen_domctl_memory_claim_t *claims)
+static int memory_claims_wrapper(xc_interface *xch, uint32_t domid,
+                                 unsigned int cmd, uint32_t *nr,
+                                 xen_domctl_memory_claim_t *claims)
 {
     struct xen_domctl domctl = {};
-    DECLARE_HYPERCALL_BOUNCE(claims, nr * sizeof(*claims),
+    DECLARE_HYPERCALL_BOUNCE(claims, *nr * sizeof(*claims),
                              XC_HYPERCALL_BUFFER_BOUNCE_BOTH);
     int ret;
 
     if ( xc_hypercall_bounce_pre(xch, claims) )
         return -1;
 
-    domctl.cmd = XEN_DOMCTL_set_memory_claims;
+    domctl.cmd = cmd;
     domctl.domain = domid;
-    domctl.u.memory_claims.nr_entries = nr;
+    domctl.u.memory_claims.nr_entries = *nr;
     set_xen_guest_handle(domctl.u.memory_claims.claim_set, claims);
 
     ret = do_domctl(xch, &domctl);
+    *nr = domctl.u.memory_claims.nr_entries;
 
     xc_hypercall_bounce_post(xch, claims);
 
     return ret;
+}
+
+/* Set memory claims for a domain. */
+int xc_domain_set_memory_claims(xc_interface *xch, uint32_t domid, uint32_t nr,
+                                xen_domctl_memory_claim_t *claims)
+{
+    return memory_claims_wrapper(xch, domid, XEN_DOMCTL_set_memory_claims,
+                                 &nr, claims);
+}
+
+/* Get memory claims for a domain. */
+int xc_domain_get_memory_claims(xc_interface *xch, uint32_t domid, uint32_t *nr,
+                                xen_domctl_memory_claim_t *claims)
+{
+    return memory_claims_wrapper(xch, domid, XEN_DOMCTL_get_memory_claims,
+                                 nr, claims);
 }
 /*
  * Local variables:
