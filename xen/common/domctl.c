@@ -51,6 +51,49 @@ static int xenctl_bitmap_to_nodemask(nodemask_t *nodemask,
                                    MAX_NUMNODES);
 }
 
+static int set_memory_claims(struct domain *d,
+                             const struct xen_domctl_memory_claims *op)
+{
+    struct xen_domctl_memory_claim *claim;
+    struct claim_set request = {};
+    int ret;
+
+    if ( op->pad )
+        return -EINVAL;
+
+    /* Releasing is harmless in any domain state. */
+    if ( !op->nr_entries )
+        return domain_set_outstanding_pages(d, 0);
+
+    if ( llc_coloring_enabled )
+        return -EOPNOTSUPP;
+
+    if ( d->is_dying )
+        return -ESRCH;
+
+    /* Allow one entry for every node plus one host-wide entry. */
+    if ( op->nr_entries > MAX_NUMNODES + 1 )
+        return -E2BIG;
+
+    /* Claims are for domain build, while the domain is still paused. */
+    if ( !d->controller_pause_count )
+        return -EBUSY;
+
+    request.nr_entries = op->nr_entries;
+    claim = xvmalloc_array(struct xen_domctl_memory_claim, request.nr_entries);
+    if ( !claim )
+        return -ENOMEM;
+
+    request.claim = claim;
+    if ( copy_from_guest(claim, op->claim_set, request.nr_entries) )
+        ret = -EFAULT;
+    else
+        ret = domain_set_claim_entries(d, &request);
+
+    xvfree(claim);
+    return ret;
+}
+
 void getdomaininfo(struct domain *d, struct xen_domctl_getdomaininfo *info)
 {
     struct vcpu *v;
@@ -602,6 +645,10 @@ long do_domctl(XEN_GUEST_HANDLE_PARAM(xen_domctl_t) u_domctl)
 
     switch ( op->cmd )
     {
+
+    case XEN_DOMCTL_set_memory_claims:
+        ret = set_memory_claims(d, &op->u.memory_claims);
+        break;
 
     case XEN_DOMCTL_setvcpucontext:
     {
