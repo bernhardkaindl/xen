@@ -33,7 +33,9 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 #define NULL ((void*)0)
 #endif
 
+#ifndef INT8_MIN
 #define INT8_MIN        (-127-1)
+#endif
 #define INT16_MIN       (-32767-1)
 #define INT32_MIN       (-2147483647-1)
 
@@ -44,7 +46,9 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 #define UINT8_MAX       (255)
 #define UINT16_MAX      (65535)
 #define UINT32_MAX      (4294967295U)
+#ifndef UINT64_MAX
 #define UINT64_MAX      (18446744073709551615ULL)
+#endif
 
 #define INT_MAX         ((int)(~0U>>1))
 #define INT_MIN         (-INT_MAX - 1)

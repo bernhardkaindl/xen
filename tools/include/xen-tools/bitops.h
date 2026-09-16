@@ -6,18 +6,22 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef BITS_PER_LONG
 #ifdef __LP64__
 #define BITS_PER_LONG 64
 #else
 #define BITS_PER_LONG 32
+#endif
 #endif
 
 #define ffsl(x)       __builtin_ffsl(x)
 
 #define BIT_WORD(nr)  ((nr) / BITS_PER_LONG)
 
+#ifndef BITS_TO_LONGS
 #define BITS_TO_LONGS(bits) \
     (((bits) + BITS_PER_LONG - 1) / BITS_PER_LONG)
+#endif
 
 #define DECLARE_BITMAP(name, bits) \
     unsigned long name[BITS_TO_LONGS(bits)]
