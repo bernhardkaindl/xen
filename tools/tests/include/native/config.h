@@ -25,8 +25,8 @@
 
 #define __XEN_KCONFIG_H
 #define __XEN_PDX_H__
-#define __XEN_FRAME_NUM_H__
 #include <xen/config.h>
+#include <xen/mm-frame.h>
 #include <xen/pfn.h>
 #include <xen/sections.h>
 #include <xen/types.h>
@@ -34,6 +34,10 @@
 
 #define printk(...)     (fflush(stdout), fprintf(stderr, __VA_ARGS__))
 #define panic(fmt, ...) (printk(fmt, ##__VA_ARGS__), abort())
+
+/* Page directory index helpers */
+#define mfn_to_pdx(mfn)   mfn_x(mfn)
+#define paddr_to_pdx(pa)  ((pa) >> PAGE_SHIFT)
 
 #define __initdata
 #define __init __used

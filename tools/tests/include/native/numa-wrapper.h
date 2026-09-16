@@ -8,7 +8,7 @@
 /* definitions for NUMA testing */
 #define arch_numa_disabled()    false
 #define arch_numa_unavailable() false
-#define vmap_contig(mfn, nr) (assert(!(mfn)), calloc(PAGE_SIZE, nr))
+#define vmap_contig(mfn, nr) (assert(!mfn_x(mfn)), calloc(PAGE_SIZE, nr))
 void numa_fw_bad(void) { }
 
 #include <common/numa.c>
