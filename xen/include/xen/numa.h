@@ -145,6 +145,7 @@ extern mfn_t first_valid_mfn;
 
 static inline nodeid_t mfn_to_nid(mfn_t mfn)
 {
+    (void)mfn;
     return 0;
 }
 
