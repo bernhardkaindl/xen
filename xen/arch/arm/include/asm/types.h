@@ -22,7 +22,9 @@ typedef u64 paddr_t;
 #define INVALID_PADDR (~0ULL)
 #define PRIpaddr "016llx"
 #endif
+#ifndef __BIT_TYPES_DEFINED__
 typedef u32 register_t;
+#endif
 #define PRIregister "08x"
 
 #elif defined(CONFIG_ARM_64)
@@ -32,7 +34,9 @@ typedef u64 vaddr_t;
 typedef u64 paddr_t;
 #define INVALID_PADDR (~0UL)
 #define PRIpaddr "016lx"
+#ifndef __BIT_TYPES_DEFINED__
 typedef u64 register_t;
+#endif
 #define PRIregister "016lx"
 
 #endif
