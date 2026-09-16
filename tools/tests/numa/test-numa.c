@@ -8,6 +8,8 @@
 #include "wrapped-xen-numa.h"
 #include "../../xen/common/numa.c"
 
+#define MAX_RANGES 128
+
 static void numa_reset_state(void)
 {
     bitmap_clear(processor_nodes_parsed.bits, CONFIG_NR_NUMA_NODES);
