@@ -82,14 +82,14 @@ static void print_ranges(const struct mem_affinity *r)
 
 static bool test_paddr(paddr_t addr)
 {
-    mfn_t mfn = PFN_DOWN(addr);
-    unsigned int idx = mfn >> memnode_shift;
+    mfn_t mfn = _mfn(PFN_DOWN(addr));
+    unsigned int idx = mfn_x(mfn) >> memnode_shift;
     unsigned int nid;
 
     if ( idx >= memnodemapsize )
     {
         printf("Fail: MFN %lx -> IDX %u outside of memnodemap range\n",
-               mfn, idx);
+               mfn_x(mfn), idx);
         return false;
     }
 
@@ -97,14 +97,14 @@ static bool test_paddr(paddr_t addr)
     if ( nid >= MAX_NUMNODES )
     {
         printf("Fail: MFN %lx -> NID %u >= MAX_NUMNODES (%u)\n",
-               mfn, nid, MAX_NUMNODES);
+               mfn_x(mfn), nid, MAX_NUMNODES);
         return false;
     }
 
     if ( !node_data[nid].node_spanned_pages )
     {
         printf("Fail: MFN %lx -> NID %u without spanned pages\n",
-               mfn, nid);
+               mfn_x(mfn), nid);
         return false;
 
     }
@@ -112,7 +112,7 @@ static bool test_paddr(paddr_t addr)
     if ( !node_data[nid].node_spanned_pages )
     {
         printf("Fail: MFN %lx -> NID %u without spanned pages\n",
-               mfn, nid);
+               mfn_x(mfn), nid);
         return false;
 
     }
@@ -120,7 +120,7 @@ static bool test_paddr(paddr_t addr)
     if ( !node_data[nid].node_spanned_pages )
     {
         printf("Fail: MFN %lx outside NID range [%013lx, %013lx]\n",
-               mfn, node_data[nid].node_start_pfn,
+               mfn_x(mfn), node_data[nid].node_start_pfn,
                node_data[nid].node_start_pfn +
                node_data[nid].node_spanned_pages - 1);
         return false;
