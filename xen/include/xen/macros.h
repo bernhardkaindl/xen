@@ -15,7 +15,9 @@
  */
 #define ISOLATE_LSB(x) ((x) & -(x))
 
+#ifndef MASK_EXTR
 #define MASK_EXTR(v, m) (((v) & (m)) / ISOLATE_LSB(m))
+#endif
 #define MASK_INSR(v, m) (((v) * ISOLATE_LSB(m)) & (m))
 
 #define count_args_(dot, a1, a2, a3, a4, a5, a6, a7, a8, x, ...) x

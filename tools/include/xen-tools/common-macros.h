@@ -73,8 +73,12 @@
 #define ROUNDUP(x, a) (((x) + (a) - 1) & ~((a) - 1))
 #define ROUNDDOWN(x, a) ((x) & ~((a) - 1))
 
+#ifndef MASK_EXTR
 #define MASK_EXTR(v, m) (((v) & (m)) / ((m) & -(m)))
+#endif
+#ifndef MASK_INSR
 #define MASK_INSR(v, m) (((v) * ((m) & -(m))) & (m))
+#endif
 
 #ifndef __must_check
 #define __must_check __attribute__((__warn_unused_result__))
@@ -89,16 +93,20 @@
 #define endof_field(type, member) \
     (offsetof(type, member) + sizeof_field(type, member))
 
+#ifndef container_of
 #define container_of(ptr, type, member) ({              \
     typeof(((type *)0)->member) *mptr__ = (ptr);        \
     (type *)((char *)mptr__ - offsetof(type, member));  \
 })
+#endif
 
 #define __STR(...) #__VA_ARGS__
 #define STR(...) __STR(__VA_ARGS__)
 
+#ifndef _AC
 #define __AC(X, Y)   (X ## Y)
 #define _AC(X, Y)    __AC(X, Y)
+#endif
 
 /* Size macros. */
 #define MB(_mb)     (_AC(_mb, ULL) << 20)
