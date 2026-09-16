@@ -35,9 +35,8 @@
 #define __XEN_KCONFIG_H
 #define __XEN_CPUMASK_H
 #define __XEN_PDX_H__
-#define __XEN_FRAME_NUM_H__
-typedef uint8_t u8;
 #include <xen/config.h>
+#include <xen/mm-frame.h>
 #include <xen/pfn.h>
 /* restore default symbol visibility for linking with libc */
 #pragma GCC visibility pop
@@ -58,17 +57,12 @@ typedef uint8_t u8;
 #define PFN_UP(x)     (((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
 
 #define paddr_to_pfn(pa)  ((unsigned long)((pa) >> PAGE_SHIFT))
-#define mfn_to_pdx(mfn)   (mfn)
+#define mfn_to_pdx(mfn)   mfn_x(mfn)
 #define paddr_to_pdx(pa)  ((pa) >> PAGE_SHIFT)
-#define mfn_to_maddr(mfn) ((mfn) << PAGE_SHIFT)
+#define mfn_to_maddr(mfn) (mfn_x(mfn) << PAGE_SHIFT)
 
 #define ASSERT assert
 #define ASSERT_UNREACHABLE() assert(0)
-
-typedef uint64_t paddr_t;
-#define PRIpaddr "016" PRIx64
-
-typedef unsigned long mfn_t;
 
 #define __set_bit set_bit
 #define __clear_bit clear_bit
@@ -145,12 +139,12 @@ static inline int __cycle_node(int n, const nodemask_t *maskp,
  */
 static inline mfn_t alloc_boot_pages(unsigned long nr, unsigned long align)
 {
-    return 0;
+    return _mfn(0);
 }
 
 static inline void *vmap_contig(mfn_t mfn, unsigned int nr)
 {
-    assert(!mfn);
+    assert(!mfn_x(mfn));
     return calloc(PAGE_SIZE, nr);
 }
 
