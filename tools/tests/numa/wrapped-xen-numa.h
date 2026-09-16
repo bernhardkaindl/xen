@@ -14,18 +14,36 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <xen-tools/bitops.h>
-#include <xen-tools/common-macros.h>
 
 #define CONFIG_DEBUG
 #define CONFIG_NUMA
 #define CONFIG_NR_NUMA_NODES 64
-#define NR_CPUS 256
+#define CONFIG_NR_CPUS 256
+#define CONFIG_MMU
+#ifdef __arm__
+#define CONFIG_PADDR_BITS 40
+#endif
+#ifdef __aarch64__
+#define CONFIG_PADDR_BITS 48
+#endif
+#ifdef __riscv
+#define CONFIG_RISCV_64
+#endif
+
 #define MAX_RANGES 128
-#define PADDR_BITS 52
+
+#define __XEN_KCONFIG_H
+#define __XEN_CPUMASK_H
+#define __XEN_PDX_H__
+#define __XEN_FRAME_NUM_H__
+typedef uint8_t u8;
+#include <xen/config.h>
+#include <xen/pfn.h>
+/* restore default symbol visibility for linking with libc */
+#pragma GCC visibility pop
+
+#include <xen-tools/bitops.h>
+#include <xen-tools/common-macros.h>
 
 #define __init
 #define __initdata
@@ -33,18 +51,7 @@
 #define __read_mostly
 
 #define printk printf
-#define XENLOG_INFO ""
-#define XENLOG_DEBUG ""
-#define XENLOG_WARNING ""
-#define KERN_INFO ""
-#define KERN_ERR ""
-#define KERN_WARNING ""
-#define KERN_DEBUG ""
 
-#define PAGE_SHIFT    12
-/* Some libcs define PAGE_SIZE in limits.h. */
-#undef  PAGE_SIZE
-#define PAGE_SIZE     (1L << PAGE_SHIFT)
 #define MAX_ORDER     18 /* 2 * PAGETABLE_ORDER (9) */
 
 #define PFN_DOWN(x)   ((x) >> PAGE_SHIFT)
@@ -58,14 +65,10 @@
 #define ASSERT assert
 #define ASSERT_UNREACHABLE() assert(0)
 
-/* For the purposes of the testing assume arch NID == Xen NID. */
-#define numa_node_to_arch_nid(n) (n)
-
 typedef uint64_t paddr_t;
 #define PRIpaddr "016" PRIx64
 
 typedef unsigned long mfn_t;
-typedef uint8_t nodeid_t;
 
 #define __set_bit set_bit
 #define __clear_bit clear_bit
@@ -173,7 +176,13 @@ static inline bool arch_numa_unavailable(void)
 static paddr_t mem_hotplug;
 static unsigned int __read_mostly nr_cpu_ids = NR_CPUS;
 
-#include "numa.h"
+#include "xen/numa.h"
+
+/* For the purposes of the testing assume arch NID == Xen NID. */
+unsigned int numa_node_to_arch_nid(nodeid_t n)
+{
+    return (unsigned int)n;
+}
 
 #endif
 
