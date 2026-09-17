@@ -150,7 +150,6 @@ static void reset_page_alloc_state(int start_mfn)
     ASSERT(mfn_x(first_valid_mfn) < max_page);
     init_dummy_domains();
     sanity_check_page_ownership_accessors();
-    testcase_assert_verbose_assertions = true;
 }
 
 static void __used init_page_alloc_tests(void)
