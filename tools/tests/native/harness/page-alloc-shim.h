@@ -67,7 +67,6 @@ typedef struct _rcu_read_lock rcu_read_lock_t;
  * sched.h can define the function without a conflicting macro expansion.
  * The mock macro is restored after sched.h is included.
  */
-#undef page_to_list
 #undef is_xen_heap_page
 #undef is_xen_fixed_mfn
 #undef is_xen_heap_mfn
