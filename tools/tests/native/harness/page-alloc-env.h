@@ -190,7 +190,6 @@ static size_t __used page_list_add_buddy(struct page_info *pages,
                                          int caller_line)
 {
     size_t i, num_pages = 1U << order;
-    bool verbose = testcase_assert_verbose_assertions;
 
     for ( i = 1; i < num_pages; i++ )
         init_test_page(&pages[i], order0, PGC_state_inuse);
