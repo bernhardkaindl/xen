@@ -138,7 +138,6 @@ static void reset_page_alloc_state(int start_mfn)
         _heap[node] = &test_heap_storage[node];
         avail[node] = test_avail_storage[node];
         node_avail_pages[node] = 0;
-        node_claimed_pages[node] = 0;
         for ( zone = 0; zone < NR_ZONES; zone++ )
             for ( order = 0; order <= MAX_ORDER; order++ )
                 INIT_PAGE_LIST_HEAD(&heap(node, zone, order));
