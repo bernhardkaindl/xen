@@ -65,7 +65,6 @@ xc_hypercall_buffer_t XC__HYPERCALL_BUFFER_NAME(HYPERCALL_BUFFER_NULL) =
 #define DECLARE_NAMED_HYPERCALL_BOUNCE(_name, _ubuf, _sz, _dir)    \
         xc_hypercall_buffer_t XC__HYPERCALL_BUFFER_NAME(_name) = { \
             .hbuf = NULL,                                          \
-            .param_shadow = NULL,                                  \
             .dir = (_dir),                                         \
             .ubuf = (_ubuf),                                       \
         }
