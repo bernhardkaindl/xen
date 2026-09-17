@@ -27,7 +27,6 @@
 
 /* Include xenctrl.h into the test context for libxc integration testing */
 #define __XEN_KEXEC_H__
-#include <public/version.h>
 #include <public/kexec.h>
 
 /* xenctrl.h conflicts with the Xen hypervisor define, it should be renamed */
