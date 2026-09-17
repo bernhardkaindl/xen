@@ -124,7 +124,6 @@ static inline void xc__hypercall_bounce_post(xc_interface *xch,
     (void)xch;
     if ( b->ubuf == (void *)-1 || b->dir == XC_HYPERCALL_BUFFER_BOUNCE_NONE )
         abort();
-    b->hbuf = NULL;
 }
 
 #define xc_hypercall_bounce_pre(_xch, _name) \
