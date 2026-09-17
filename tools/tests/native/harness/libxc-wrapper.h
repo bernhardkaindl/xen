@@ -96,7 +96,6 @@ void *xc__hypercall_buffer_alloc_pages(xc_interface *xch,
                                        int nr_pages)
 {
     return xc__hypercall_buffer_alloc(xch, b,
-                                      (size_t)(nr_pages ? nr_pages : 1) *
                                       XC_PAGE_SIZE);
 }
 
