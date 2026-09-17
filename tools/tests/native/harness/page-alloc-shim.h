@@ -159,7 +159,6 @@ unsigned long memnodemapsize = sizeof(_memnodemap);
 #define unmap_domain_page(ptr)     ((void)(ptr))
 #define ASSERT_ALLOC_CONTEXT()     ((void)0)
 #define get_knownalive_domain(d)   ((void)(d))
-#define mem_paging_enabled(d)      false
 
 #define put_page(pg) ((void)(pg))
 bool get_page(struct page_info *page, const struct domain *domain)
