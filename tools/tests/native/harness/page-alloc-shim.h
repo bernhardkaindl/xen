@@ -147,7 +147,6 @@ unsigned long memnodemapsize = sizeof(_memnodemap);
 #define softirq_pending(cpu)              false
 #define process_pending_softirqs()        ((void)0)
 #define on_selected_cpus(msk, f, data, w) ((void)0)
-#define get_order_from_pages(nr)          0U
 
 /* Testing hypercall preemption is not supported yet. */
 #undef hypercall_preempt_check
