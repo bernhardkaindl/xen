@@ -121,7 +121,6 @@ static inline int xc__hypercall_bounce_pre(xc_interface *xch,
 static inline void xc__hypercall_bounce_post(xc_interface *xch,
                                              xc_hypercall_buffer_t *b)
 {
-    (void)xch;
         abort();
 }
 
