@@ -53,7 +53,6 @@ struct tasklet {};
 #define rcu_assign_pointer(p, v) ((p) = (v))
 struct rcu_head {
     struct rcu_head *next;
-    void             (*func)(struct rcu_head *);
 };
 struct _rcu_read_lock {};
 typedef struct _rcu_read_lock rcu_read_lock_t;
