@@ -11,7 +11,6 @@
 #ifndef TOOLS_TESTS_NATIVE_HARNESS_XENCTRL_SHIM_H
 #define TOOLS_TESTS_NATIVE_HARNESS_XENCTRL_SHIM_H
 #ifdef TEST_WRAP_TOOLS_INCLUDE_XENCTRL_H
-#include "common.h"
 
 /*
  * This file replaces the private APIs of xc_private.h. By doing this, we can
