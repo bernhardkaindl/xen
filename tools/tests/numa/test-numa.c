@@ -6,7 +6,9 @@
  */
 
 #include "wrapped-xen-numa.h"
-#include "../../xen/common/numa.c"
+#include "../native/harness/numa-shim.h"
+
+#define MAX_RANGES 128
 
 static void numa_reset_state(void)
 {

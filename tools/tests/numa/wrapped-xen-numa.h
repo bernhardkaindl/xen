@@ -8,47 +8,11 @@
 #ifndef WRAPPED_XEN_NUMA_H
 #define WRAPPED_XEN_NUMA_H
 
-#include <assert.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
+#define CONFIG_NUMA
+#define __XEN_CPUMASK_H
+#include "../native/harness/config.h"
 #include <xen-tools/bitops.h>
 #include <xen-tools/common-macros.h>
-
-#define CONFIG_DEBUG
-#define CONFIG_NUMA
-#define CONFIG_NR_NUMA_NODES 64
-#define NR_CPUS 256
-#define MAX_RANGES 128
-#define PADDR_BITS 52
-
-#define __init
-#define __initdata
-#define __ro_after_init
-#define __read_mostly
-
-#define printk printf
-#define XENLOG_INFO ""
-#define XENLOG_DEBUG ""
-#define XENLOG_WARNING ""
-#define KERN_INFO ""
-#define KERN_ERR ""
-#define KERN_WARNING ""
-#define KERN_DEBUG ""
-
-#define PAGE_SHIFT    12
-/* Some libcs define PAGE_SIZE in limits.h. */
-#undef  PAGE_SIZE
-#define PAGE_SIZE     (1L << PAGE_SHIFT)
-#define MAX_ORDER     18 /* 2 * PAGETABLE_ORDER (9) */
-
-#define PFN_DOWN(x)   ((x) >> PAGE_SHIFT)
-#define PFN_UP(x)     (((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
 
 #define paddr_to_pfn(pa)  ((unsigned long)((pa) >> PAGE_SHIFT))
 #define mfn_to_pdx(mfn)   (mfn)
@@ -58,14 +22,7 @@
 #define ASSERT assert
 #define ASSERT_UNREACHABLE() assert(0)
 
-/* For the purposes of the testing assume arch NID == Xen NID. */
-#define numa_node_to_arch_nid(n) (n)
-
-typedef uint64_t paddr_t;
-#define PRIpaddr "016" PRIx64
-
 typedef unsigned long mfn_t;
-typedef uint8_t nodeid_t;
 
 #define __set_bit set_bit
 #define __clear_bit clear_bit
@@ -145,35 +102,10 @@ static inline mfn_t alloc_boot_pages(unsigned long nr, unsigned long align)
     return 0;
 }
 
-static inline void *vmap_contig(mfn_t mfn, unsigned int nr)
-{
-    assert(!mfn);
-    return calloc(PAGE_SIZE, nr);
-}
-
-static inline void panic(const char *msg)
-{
-    printf("%s\n", msg);
-    abort();
-}
-
-/* Dummy implementations to satisfy the build. */
-static inline bool arch_numa_disabled(void)
-{
-    return false;
-}
-
-static inline void numa_fw_bad(void) { }
-
-static inline bool arch_numa_unavailable(void)
-{
-    return false;
-}
-
 static paddr_t mem_hotplug;
 static unsigned int __read_mostly nr_cpu_ids = NR_CPUS;
 
-#include "numa.h"
+#include <xen/numa.h>
 
 #endif
 
