@@ -80,7 +80,6 @@ void *xc__hypercall_buffer_alloc(xc_interface *xch,
                                  xc_hypercall_buffer_t *b,
                                  size_t size)
 {
-    b->hbuf = calloc(size ? size : 1, 1);
     return b->hbuf;
 }
 
