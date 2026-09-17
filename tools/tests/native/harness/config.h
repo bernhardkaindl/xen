@@ -29,7 +29,6 @@
 #define __XEN_KCONFIG_H
 #define __XEN_PDX_H__
 #include <xen/config.h>
-#include <xen/mm-frame.h>
 #include <xen/pfn.h>
 #pragma GCC visibility pop
 
