@@ -193,7 +193,6 @@ static size_t __used page_list_add_buddy(struct page_info *pages,
     bool verbose = testcase_assert_verbose_assertions;
 
     testcase_assert_verbose_assertions = false;
-    init_test_page(&pages[0], order, PGC_state_inuse);
     for ( i = 1; i < num_pages; i++ )
         init_test_page(&pages[i], order0, PGC_state_inuse);
     free_heap_pages(&pages[0], order, false);
