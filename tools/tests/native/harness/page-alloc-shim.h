@@ -136,7 +136,6 @@ unsigned long memnodemapsize = sizeof(_memnodemap);
 #define cpumask_clear(mask)      ((void)(mask))
 #define cpumask_and(dst, a, b)   ((void)(dst), (void)(a), (void)(b))
 #define cpumask_or(dst, a, b)    ((void)(dst), (void)(a), (void)(b))
-#define cpumask_copy(dst, src)   ((void)(dst), (void)(src))
 #define cpumask_first(mask)      0U
 
 /* cpumask_weight defined before sched.h; identical redefinition is benign */
