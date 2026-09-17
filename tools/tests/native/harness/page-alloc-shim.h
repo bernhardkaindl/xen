@@ -181,7 +181,6 @@ unsigned int arch_get_dma_bitsize(void)
 #endif
 
 /* LLC (Last Level Cache) coloring support stubs */
-#define llc_coloring_enabled false
 unsigned int get_max_nr_llc_colors(void)
 {
     return 1U;
