@@ -22,7 +22,6 @@
  * to enable the definitions in this header.
  */
 #ifdef TEST_WRAP_XEN_COMMON_PAGE_ALLOC_C
-#define CONFIG_SCRUB_DEBUG
 #define TEST_WRAP_XEN_INCLUDE_XEN_MM_H
 
 /* Provide struct page_info and related Xen definitions */
