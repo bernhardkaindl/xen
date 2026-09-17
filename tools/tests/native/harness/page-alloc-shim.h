@@ -138,7 +138,6 @@ unsigned long memnodemapsize = sizeof(_memnodemap);
 #define cpumask_or(dst, a, b)    ((void)(dst), (void)(a), (void)(b))
 #define cpumask_copy(dst, src)   ((void)(dst), (void)(src))
 #define cpumask_first(mask)      0U
-#define cpumask_intersects(a, b) false
 
 /* cpumask_weight defined before sched.h; identical redefinition is benign */
 #define page_get_owner_and_reference(pg)  page_get_owner(pg)
