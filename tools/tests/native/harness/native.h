@@ -58,7 +58,6 @@ void __aligned(PAGE_SIZE) *test_bss_start;
 #pragma GCC diagnostic pop
 
 #ifdef TEST_WRAP_XEN_COMMON_DOMCTL_C
-#include "domctl-wrapper.h"
 #endif
 
 #ifdef TEST_ENABLE_XC_DOMAIN_C
