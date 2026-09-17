@@ -77,7 +77,6 @@ int rcu_lock_remote_domain_by_id(domid_t dom, struct domain **dp)
 
     for_each_domain ( d )
     {
-        if ( d->domain_id == dom )
         {
             *dp = d;
         }
