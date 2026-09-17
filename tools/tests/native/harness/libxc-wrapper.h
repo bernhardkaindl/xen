@@ -104,7 +104,6 @@ void xc__hypercall_buffer_free_pages(xc_interface *xch,
                                      xc_hypercall_buffer_t *b,
                                      int nr_pages)
 {
-    (void)nr_pages;
 }
 
 static inline int xc__hypercall_bounce_pre(xc_interface *xch,
