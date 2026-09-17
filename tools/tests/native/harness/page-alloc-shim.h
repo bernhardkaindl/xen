@@ -132,7 +132,6 @@ unsigned long memnodemapsize = sizeof(_memnodemap);
 #define smp_processor_id()  0U
 /* smp_wmb and cpumask_weight defined before sched.h include; identical
  * redefinitions here are benign but kept for clarity. */
-#define cpumask_empty(mask)      true
 #define cpumask_clear(mask)      ((void)(mask))
 #define cpumask_and(dst, a, b)   ((void)(dst), (void)(a), (void)(b))
 #define cpumask_or(dst, a, b)    ((void)(dst), (void)(a), (void)(b))
