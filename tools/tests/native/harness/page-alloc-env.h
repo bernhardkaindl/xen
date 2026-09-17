@@ -209,7 +209,6 @@ static size_t __used page_list_add_buddy(struct page_info *pages,
                         mfn_x(page_to_mfn(&pages[0])),
                         page_to_zone(&pages[0]),
                         page_to_zone(&pages[num_pages - 1]));
-    testcase_assert_verbose_assertions = verbose;
     return page_to_zone(&pages[0]);
 }
 #define test_page_list_add_buddy(pages, order) \
