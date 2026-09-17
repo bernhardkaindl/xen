@@ -25,7 +25,6 @@
 #define xvfree(p)                 free(p)
 
 /* Page directory index helpers */
-#define mfn_to_pdx(mfn)   mfn_x(mfn)
 #define pdx_to_mfn(pdx)   _mfn(pdx)
 #define page_to_pdx(pg)   ((unsigned long)((pg) - frame_table))
 #define pdx_to_page(pdx)  (frame_table + (pdx))
