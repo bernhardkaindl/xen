@@ -26,7 +26,6 @@
 #define TEST_WRAP_XEN_INCLUDE_XEN_MM_H
 
 /* Provide struct page_info and related Xen definitions */
-#include "common.h"
 #include "mm-wrapper.h"
 
 static struct vcpu __used *current;  /* zero-init; assigned via constructor below */
