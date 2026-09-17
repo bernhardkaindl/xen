@@ -300,7 +300,6 @@ static const char *parse_args(int argc, char *argv[], const char *topic)
         program_name = argv[0];
 
     testcase_assert_enabled_tests = &argv[1];
-    printf("Program: %s\n", program_name);
     testcase_program_name = program_name;
     return program_name;
 }
