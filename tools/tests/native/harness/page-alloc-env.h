@@ -171,7 +171,6 @@ static void init_test_page(struct page_info *page, unsigned int order,
         max_page = mfn_x(mfn) + 1;
 
     memset(page, 0, sizeof(*page));
-    page->v.free.order = order;
 }
 
 /* Check whether the page is aligned to its order (is size-aligned) */
