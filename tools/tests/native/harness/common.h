@@ -148,7 +148,6 @@ unsigned long raw_copy_to_guest(void *to, const void *from, unsigned int len)
 unsigned long raw_copy_to_guest_flush_dcache(void *to, const void *from,
                                              unsigned int len)
 {
-    memcpy(to, from, len);
     return 0;
 }
 unsigned long raw_copy_from_guest(void *to, const void *from, unsigned int len)
