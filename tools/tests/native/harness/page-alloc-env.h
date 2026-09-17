@@ -172,7 +172,6 @@ static void init_test_page(struct page_info *page, unsigned int order,
 
     memset(page, 0, sizeof(*page));
     page->v.free.order = order;
-    page->u.free.first_dirty = INVALID_DIRTY_IDX;
 }
 
 /* Check whether the page is aligned to its order (is size-aligned) */
