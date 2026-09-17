@@ -129,7 +129,6 @@ static void reset_page_alloc_state(int start_mfn)
     memset(&test_current_vcpu, 0, sizeof(test_current_vcpu));
     system_state = SYS_STATE_active;
     INIT_PAGE_LIST_HEAD(&page_offlined_list);
-    INIT_PAGE_LIST_HEAD(&page_broken_list);
 
     init_numa_node_data(start_mfn);
     nodes_setall(node_online_map);
