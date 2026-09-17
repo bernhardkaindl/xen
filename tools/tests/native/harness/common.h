@@ -61,7 +61,6 @@
 #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 #define __XEN_BUG_H__
 #define __XEN_ERRNO_H__
-#define __XEN_PDX_H__
 #define _X86_BITOPS_H
 #define _ARM_BITOPS_H
 #define ASM__RISCV__BITOPS_H
