@@ -146,7 +146,6 @@ static void reset_page_alloc_state(int start_mfn)
     total_avail_pages = 0;
     outstanding_claims = 0;
     first_valid_mfn = _mfn(start_mfn);
-    max_page = sizeof(test_frame_table) / sizeof(test_frame_table[0]);
     init_dummy_domains();
     sanity_check_page_ownership_accessors();
 }
