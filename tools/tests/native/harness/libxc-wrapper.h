@@ -56,7 +56,6 @@ xc_hypercall_buffer_t XC__HYPERCALL_BUFFER_NAME(HYPERCALL_BUFFER_NULL) =
 {
     .hbuf = NULL,
     .param_shadow = NULL,
-    HYPERCALL_BUFFER_INIT_NO_BOUNCE
 };
 
 #define PERROR(_m, _a ...) ((void)0)
