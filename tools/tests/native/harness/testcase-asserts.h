@@ -302,7 +302,6 @@ static const char *parse_args(int argc, char *argv[], const char *topic)
     testcase_assert_enabled_tests = &argv[1];
     printf("Program: %s\n", program_name);
     printf("Topic  : %s\n", topic);
-    memset(testcases, 0, sizeof(testcases));
     testcase_program_name = program_name;
     return program_name;
 }
