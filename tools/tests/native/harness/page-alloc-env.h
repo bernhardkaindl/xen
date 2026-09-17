@@ -238,7 +238,6 @@ static void check_xc_avail_heap(const char *file, int line, const char *func)
 /* Get the number of free pages with consistency checks */
 unsigned long get_free_pages(const char *file, int line, const char *func)
 {
-    bool verbose = testcase_assert_verbose_assertions;
 
     check_xc_avail_heap(file, line, func);
     testcase_assert(avail_heap_pages(MEMZONE_XEN, NR_ZONES - 1, -1) ==
