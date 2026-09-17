@@ -159,7 +159,6 @@ unsigned long raw_copy_from_guest(void *to, const void *from, unsigned int len)
 #define __raw_copy_from_guest raw_copy_from_guest
 unsigned long raw_clear_guest(void *to, unsigned int len)
 {
-    memset(to, 0, len);
     return 0;
 }
 
