@@ -66,7 +66,6 @@ xc_hypercall_buffer_t XC__HYPERCALL_BUFFER_NAME(HYPERCALL_BUFFER_NULL) =
         xc_hypercall_buffer_t XC__HYPERCALL_BUFFER_NAME(_name) = { \
             .hbuf = NULL,                                          \
             .param_shadow = NULL,                                  \
-            .sz = (_sz),                                           \
             .dir = (_dir),                                         \
             .ubuf = (_ubuf),                                       \
         }
