@@ -109,7 +109,6 @@ static void __attribute__((constructor)) _page_alloc_shim_init_current(void)
 }
 /* dom_cow is a domain pointer used by the memory sharing code */
 #ifdef CONFIG_MEM_SHARING
-static struct domain *dom_cow;
 #endif
 
 nodemask_t node_online_map;
