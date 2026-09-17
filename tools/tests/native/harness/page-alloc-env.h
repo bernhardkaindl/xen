@@ -244,7 +244,6 @@ unsigned long get_free_pages(const char *file, int line, const char *func)
     check_xc_avail_heap(file, line, func);
     testcase_assert(avail_heap_pages(MEMZONE_XEN, NR_ZONES - 1, -1) ==
                     total_avail_pages, file, line, func, "avail_heap_pages()");
-    testcase_assert_verbose_assertions = verbose;
     return total_avail_pages;
 }
 
