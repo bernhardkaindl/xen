@@ -156,7 +156,6 @@ unsigned long memnodemapsize = sizeof(_memnodemap);
 
 #undef arch_free_heap_page
 #define arch_free_heap_page(d, pg) ((void)(d), (void)(pg))
-#define unmap_domain_page(ptr)     ((void)(ptr))
 #define ASSERT_ALLOC_CONTEXT()     ((void)0)
 
 #define put_page(pg) ((void)(pg))
