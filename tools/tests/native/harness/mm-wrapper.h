@@ -81,7 +81,6 @@ static unsigned char       test_dummy_storage[PAGE_SIZE];
 #if defined(__arm__) || defined(__aarch64__)
 void dump_hyp_walk(vaddr_t addr)
 {
-    (void)addr;
 }
 
 void __attribute__((__noreturn__)) panic_PAR(uint64_t par)
