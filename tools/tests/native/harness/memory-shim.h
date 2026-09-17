@@ -80,7 +80,6 @@ int rcu_lock_remote_domain_by_id(domid_t dom, struct domain **dp)
         if ( d->domain_id == dom )
         {
             *dp = d;
-            return 0;
         }
     }
     return -ESRCH;
