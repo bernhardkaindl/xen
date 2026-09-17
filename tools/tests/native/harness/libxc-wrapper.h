@@ -111,7 +111,6 @@ void xc__hypercall_buffer_free_pages(xc_interface *xch,
 static inline int xc__hypercall_bounce_pre(xc_interface *xch,
                                            xc_hypercall_buffer_t *b)
 {
-    (void)xch;
     if ( b->ubuf == (void *)-1 || b->dir == XC_HYPERCALL_BUFFER_BOUNCE_NONE )
         abort();
     b->hbuf = b->ubuf;
