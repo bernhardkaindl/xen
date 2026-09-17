@@ -111,7 +111,6 @@ static void __attribute__((constructor)) _page_alloc_shim_init_current(void)
 #ifdef CONFIG_MEM_SHARING
 static struct domain *dom_cow;
 #else
-#define dom_cow NULL
 #endif
 
 nodemask_t node_online_map;
