@@ -141,7 +141,6 @@ unsigned long memnodemapsize = sizeof(_memnodemap);
 #define cpumask_intersects(a, b) false
 
 /* cpumask_weight defined before sched.h; identical redefinition is benign */
-#define __cpumask_set_cpu(cpu, mask)      ((void)(cpu), (void)(mask))
 #define page_get_owner_and_reference(pg)  page_get_owner(pg)
 #define page_is_offlinable(mfn)           true
 #define softirq_pending(cpu)              false
