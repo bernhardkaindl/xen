@@ -87,7 +87,6 @@ void *xc__hypercall_buffer_alloc(xc_interface *xch,
 void xc__hypercall_buffer_free(xc_interface *xch,
                                xc_hypercall_buffer_t *b)
 {
-    free(b->hbuf);
 }
 
 void *xc__hypercall_buffer_alloc_pages(xc_interface *xch,
