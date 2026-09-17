@@ -91,7 +91,6 @@ static struct domain __used *dom1 = &test_dummy_domain1;
 static struct domain __used *dom2 = &test_dummy_domain2;
 #undef put_domain
 #define put_domain(d)                 ((void)(d))
-#define rcu_lock_domain(id)           (&test_dummy_domain1)
 #define rcu_lock_domain_by_any_id(id) (&test_dummy_domain1)
 #define dom_io                        (&test_dummy_domain1)
 #define dom_xen                       (&test_dummy_domain2)
