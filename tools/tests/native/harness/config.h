@@ -5,7 +5,6 @@
  * Copyright (C) 2026 Cloud Software Group
  */
 
-#include <assert.h>
 
 #define CONFIG_DEBUG
 #define CONFIG_NR_NUMA_NODES 64
