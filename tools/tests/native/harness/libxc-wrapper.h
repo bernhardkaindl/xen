@@ -54,7 +54,6 @@ enum {
 
 xc_hypercall_buffer_t XC__HYPERCALL_BUFFER_NAME(HYPERCALL_BUFFER_NULL) =
 {
-    .hbuf = NULL,
 };
 
 #define PERROR(_m, _a ...) ((void)0)
