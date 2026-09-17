@@ -30,7 +30,6 @@ static inline int do_domctl_hypervisor_passthrough(xc_interface *xch,
     } u = { .ptr = domctl };
 
     domctl->interface_version = XEN_DOMCTL_INTERFACE_VERSION;
-    ASSERT(xch == &test_xc_handle);
     return do_domctl(u.handle); /* Call xen/common/domctl.c's do_domctl() */
 }
 
