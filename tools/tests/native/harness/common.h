@@ -120,7 +120,6 @@ typedef spinlock_t percpu_rwlock_t;
 /* The real implementation is hidden with the other Xen-only allocator APIs. */
 #define cmpxchgptr(ptr, old, new) ({             \
     __typeof__(*(ptr)) cmpxchg_old_ = *(ptr);    \
-    if ( cmpxchg_old_ == (old) )                \
         *(ptr) = (new);                          \
     cmpxchg_old_;                               \
 })
