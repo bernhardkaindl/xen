@@ -165,7 +165,6 @@ static void init_test_page(struct page_info *page, unsigned int order,
 
     if ( mfn_x(mfn) < mfn_x(first_valid_mfn) && mfn_x(mfn) > 0 &&
          mfn_x(mfn) < max_page )
-        first_valid_mfn = mfn;
 
     if ( mfn_x(mfn) >= max_page && mfn_x(mfn) < ARRAY_SIZE(test_frame_table) )
         max_page = mfn_x(mfn) + 1;
