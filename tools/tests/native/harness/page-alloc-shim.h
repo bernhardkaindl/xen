@@ -38,7 +38,6 @@ struct arch_domain {};
 struct arch_vcpu {};
 struct arch_vcpu_io {};
 #endif
-struct lock_profile {};
 struct lock_profile_qhead {};
 struct tasklet {};
 #define parse_bool(s, e) (-1)
