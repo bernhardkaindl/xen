@@ -131,7 +131,6 @@ static inline void xc__hypercall_bounce_post(xc_interface *xch,
         xc__hypercall_bounce_pre(_xch, HYPERCALL_BUFFER(_name))
 
 #define xc_hypercall_bounce_post(_xch, _name) \
-        xc__hypercall_bounce_post(_xch, HYPERCALL_BUFFER(_name))
 
 static inline int xencall2(void *xcall, unsigned int op,
                            unsigned long arg1, unsigned long arg2)
