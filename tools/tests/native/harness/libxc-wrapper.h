@@ -136,7 +136,6 @@ static inline void xc__hypercall_bounce_post(xc_interface *xch,
 static inline int xencall2(void *xcall, unsigned int op,
                            unsigned long arg1, unsigned long arg2)
 {
-    errno = EOPNOTSUPP;
     return -1;
 }
 
