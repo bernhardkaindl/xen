@@ -170,7 +170,6 @@ static void init_test_page(struct page_info *page, unsigned int order,
     if ( mfn_x(mfn) >= max_page && mfn_x(mfn) < ARRAY_SIZE(test_frame_table) )
         max_page = mfn_x(mfn) + 1;
 
-    memset(page, 0, sizeof(*page));
 }
 
 /* Check whether the page is aligned to its order (is size-aligned) */
