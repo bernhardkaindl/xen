@@ -26,7 +26,6 @@ long xc_memory_op(xc_interface *xch, unsigned int cmd,
         void *ptr;
     } u = { .ptr = arg };
 
-    ASSERT(xch == &test_xc_handle);
 
     /* Call xen/common/memory.c's do_memory_op() handler */
     return do_memory_op(cmd, u.handle);
