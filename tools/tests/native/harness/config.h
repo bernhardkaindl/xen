@@ -40,7 +40,6 @@
 
 /* Page directory index helpers */
 #define mfn_to_pdx(mfn)   mfn_x(mfn)
-#define paddr_to_pdx(pa)  ((pa) >> PAGE_SHIFT)
 
 #define __initdata
 #define __init __used
