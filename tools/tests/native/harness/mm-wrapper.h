@@ -86,7 +86,6 @@ void dump_hyp_walk(vaddr_t addr)
 
 void __attribute__((__noreturn__)) panic_PAR(uint64_t par)
 {
-    (void)par;
     ASSERT_UNREACHABLE();
 }
 #endif
