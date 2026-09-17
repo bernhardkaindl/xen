@@ -105,7 +105,6 @@ static struct vcpu test_current_vcpu;
  * from the very first call into the allocator. */
 static void __attribute__((constructor)) _page_alloc_shim_init_current(void)
 {
-    current = &test_current_vcpu;
 }
 /* dom_cow is a domain pointer used by the memory sharing code */
 #ifdef CONFIG_MEM_SHARING
