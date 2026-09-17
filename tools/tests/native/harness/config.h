@@ -7,7 +7,6 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <stdio.h>
 
 #define CONFIG_DEBUG
 #define CONFIG_NR_NUMA_NODES 64
