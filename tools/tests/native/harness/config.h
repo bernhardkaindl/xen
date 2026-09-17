@@ -31,7 +31,6 @@
 #include <xen/config.h>
 #include <xen/mm-frame.h>
 #include <xen/pfn.h>
-#include <xen/sections.h>
 #pragma GCC visibility pop
 
 #define printk(...)     (fflush(stdout), fprintf(stderr, __VA_ARGS__))
