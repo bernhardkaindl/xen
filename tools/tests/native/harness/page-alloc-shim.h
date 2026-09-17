@@ -42,7 +42,6 @@ struct lock_profile {};
 struct lock_profile_qhead {};
 struct tasklet {};
 #define parse_bool(s, e) (-1)
-#define perfc_incr(x) ((void)0)
 #define this_cpu(x) (shim_per_cpu__##x)
 
 /*
