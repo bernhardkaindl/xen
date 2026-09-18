@@ -1,5 +1,5 @@
 XEN_ROOT=$(CURDIR)/../../..
-include $(XEN_ROOT)/tools/Rules.mk
+include $(XEN_ROOT)/tools/tests/native/Rules.mk
 
 TARGETS := test-numa
 
@@ -19,7 +19,7 @@ endif
 
 .PHONY: clean
 clean:
-	$(RM) -- *.o $(TARGETS) $(DEPS_RM) numa.h
+	$(RM) -- *.o $(TARGETS) $(DEPS_RM)
 
 .PHONY: distclean
 distclean: clean
@@ -34,13 +34,12 @@ install: all
 uninstall:
 	$(RM) -- $(patsubst %,$(DESTDIR)$(LIBEXEC)/tests/%,$(TARGETS))
 
-numa.h: $(XEN_ROOT)/xen/include/xen/numa.h
-	sed -e '/^#[[:space:]]*include/d' <$< >$@
-
 CFLAGS += -D__XEN_TOOLS__
+CFLAGS += $(CFLAGS_xeninclude_xen)
 CFLAGS += $(CFLAGS_xeninclude)
+CFLAGS += $(CFLAGS_tests_native)
 
-test-numa: test-numa.c numa.h
+test-numa: test-numa.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $< $(APPEND_CFLAGS)
 
 -include $(DEPS_INCLUDE)
