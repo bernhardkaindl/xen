@@ -10,13 +10,16 @@
 #define CONFIG_NR_CPUS       128
 #define CONFIG_MMU
 #ifdef __arm__
+#define CONFIG_ARM_32
 #define CONFIG_PADDR_BITS 40
 #endif
 #ifdef __aarch64__
+#define CONFIG_ARM_64
 #define CONFIG_PADDR_BITS 48
 #endif
 #ifdef __riscv
 #define CONFIG_RISCV_64
+#define CONFIG_QEMU_PLATFORM
 #endif
 
 #define __XEN_KCONFIG_H
