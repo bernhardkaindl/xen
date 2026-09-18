@@ -12,9 +12,9 @@
 
 static void numa_reset_state(void)
 {
-    bitmap_clear(processor_nodes_parsed.bits, CONFIG_NR_NUMA_NODES);
-    bitmap_clear(memory_nodes_parsed.bits, CONFIG_NR_NUMA_NODES);
-    bitmap_clear(memblk_hotplug, NR_NODE_MEMBLKS);
+    bitmap_clear(processor_nodes_parsed.bits, 0, CONFIG_NR_NUMA_NODES);
+    bitmap_clear(memory_nodes_parsed.bits, 0, CONFIG_NR_NUMA_NODES);
+    bitmap_clear(memblk_hotplug, 0, NR_NODE_MEMBLKS);
     memset(numa_nodes, 0, sizeof(numa_nodes));
     memset(node_memblk_range, 0, sizeof(node_memblk_range));
     memset(memblk_nodeid, 0, sizeof(memblk_nodeid));
@@ -27,7 +27,7 @@ static void numa_reset_state(void)
     if ( memnodemap != _memnodemap )
         free(memnodemap);
     memnodemap = NULL;
-    bitmap_clear(node_online_map.bits, CONFIG_NR_NUMA_NODES);
+    bitmap_clear(node_online_map.bits, 0, CONFIG_NR_NUMA_NODES);
     node_set(1, node_online_map);
 }
 
