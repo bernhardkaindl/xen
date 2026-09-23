@@ -11,6 +11,15 @@
 
 #define __XEN_BUG_H__
 #define ASSERT(condition) assert(condition)
+#define EQ(a, b) do { \
+    unsigned long _a = (unsigned long)(a), _b = (unsigned long)(b); \
+    fprintf(stderr, "Checking: %lu == %lu (%s == %s)\n",\
+        _a, _b, #a, #b);\
+    if (_a != _b) {\
+        fprintf(stderr, "Assertion failed: %lu == %lu (%s == %s)\n",\
+        _a, _b, #a, #b);\
+        assert(_a == _b);\
+} } while (0)
 #define ASSERT_UNREACHABLE() assert(0)
 #define BUG_ON(condition) assert(!(condition))
 

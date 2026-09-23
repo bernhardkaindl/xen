@@ -5,6 +5,8 @@
 #define TOOLS_TESTS_INCLUDE_NATIVE_CONFIG_H
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <limits.h>
 #include <stdio.h>
 
 #ifdef __arm__
