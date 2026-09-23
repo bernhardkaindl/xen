@@ -5,8 +5,16 @@
 #define TOOLS_TESTS_INCLUDE_NATIVE_CONFIG_H
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <limits.h>
 #include <stdio.h>
+/* Xen's __nonull conflicts with glibc's; include headers used by libxc here. */
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
+#undef __nonnull
 
 #ifdef __arm__
 #define CONFIG_ARM_32
