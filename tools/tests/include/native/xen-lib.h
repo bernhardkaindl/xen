@@ -8,8 +8,22 @@
 #define __XEN_ERRNO_H__
 #define printk printf
 
+/* Make stdout for printf line-buffered for all tests */
+__attribute__((constructor)) static void setup_stdout(void)
+{
+    setvbuf(stdout, NULL, _IOLBF, 0);
+}
+
 #define __XEN_BUG_H__
 #define ASSERT(condition) assert(condition)
+#define EQ(a, b) do {                                               \
+            long _a = (long)(a), _b = (long)(b);                    \
+            printf("Checking: %s == %s\n", #a, #b);                 \
+            if ( _a != _b ) {                                       \
+                printf("Assertion failed: %ld == %ld (%s == %s)\n", \
+                       _a, _b, #a, #b);                             \
+                assert(_a == _b);                                   \
+            } } while ( 0 )
 #define ASSERT_UNREACHABLE() assert(0)
 #define BUG_ON(condition) assert(!(condition))
 
