@@ -1,4 +1,5 @@
-XEN_ROOT=$(CURDIR)/../../..
+XEN_ROOT := $(abspath $(CURDIR)/../../..)
+srctree  := $(XEN_ROOT)/xen
 include $(XEN_ROOT)/tools/Rules.mk
 
 TARGETS := test-numa
@@ -19,7 +20,7 @@ endif
 
 .PHONY: clean
 clean:
-	$(RM) -- *.o $(TARGETS) $(DEPS_RM) numa.h
+	$(RM) -- *.o $(TARGETS) $(DEPS_RM)
 
 .PHONY: distclean
 distclean: clean
@@ -34,13 +35,16 @@ install: all
 uninstall:
 	$(RM) -- $(patsubst %,$(DESTDIR)$(LIBEXEC)/tests/%,$(TARGETS))
 
-numa.h: $(XEN_ROOT)/xen/include/xen/numa.h
-	sed -e '/^#[[:space:]]*include/d' <$< >$@
-
 CFLAGS += -D__XEN_TOOLS__
 CFLAGS += $(CFLAGS_xeninclude)
+$(eval $(call native-test-cflags,CFLAGS,$(XEN_TARGET_ARCH)))
 
-test-numa: test-numa.c numa.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $< $(APPEND_CFLAGS)
+HAS_NUMA_H := $(wildcard $(srctree)/arch/$(include-arch)/include/asm/numa.h)
+test-numa: test-numa.c
+ifeq ($(HAS_NUMA_H),)
+	@echo "Skipping test-numa build for architecture without asm/numa.h header"
+else
+	$(CROSS_COMPILE)$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $< $(APPEND_CFLAGS)
+endif
 
 -include $(DEPS_INCLUDE)
