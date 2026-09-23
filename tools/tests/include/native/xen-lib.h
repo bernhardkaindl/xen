@@ -8,6 +8,12 @@
 #define __XEN_ERRNO_H__
 #define printk printf
 
+/* Make stdout for printf line-buffered for all tests */
+__attribute__((constructor)) static void setup_stdout(void)
+{
+    setvbuf(stdout, NULL, _IOLBF, 0);
+}
+
 #define __XEN_BUG_H__
 #define ASSERT(condition) assert(condition)
 #define ASSERT_UNREACHABLE() assert(0)
@@ -26,8 +32,47 @@
 #define xfree(ptr)              free(ptr)
 #define xvfree(ptr)             free(ptr)
 
-#define raw_copy_to_guest(t, f, l) (__builtin_memcpy(t, f, l), 0UL)
-#define raw_copy_from_guest(t, f, l) (__builtin_memcpy(t, f, l), 0UL)
+static unsigned char native_invalid_guest_buffer;
+
+static inline unsigned long native_guest_copy(void *to, const void *from,
+                                              unsigned long len,
+                                              const void *guest)
+{
+    if ( !len )
+        return 0;
+
+    if ( !guest || guest == &native_invalid_guest_buffer )
+        return len;
+
+    __builtin_memcpy(to, from, len);
+    return 0;
+}
+
+static const void *native_copy_to_guest_fault;
+static unsigned long native_copy_to_guest_prefix;
+
+static inline unsigned long native_guest_copy_to(void *to, const void *from,
+                                                 unsigned long len)
+{
+    if ( native_copy_to_guest_fault && len &&
+         to == native_copy_to_guest_fault )
+    {
+        unsigned long copied = native_copy_to_guest_prefix;
+
+        ASSERT(copied < len);
+        native_copy_to_guest_fault = NULL;
+
+        if ( copied )
+            __builtin_memcpy(to, from, copied);
+
+        return len - copied;
+    }
+
+    return native_guest_copy(to, from, len, to);
+}
+
+#define raw_copy_to_guest(t, f, l) native_guest_copy_to(t, f, l)
+#define raw_copy_from_guest(t, f, l) native_guest_copy(t, f, l, f)
 
 #define _LINUX_INIT_H
 #define __initdata

@@ -607,6 +607,12 @@ PHONY += asm-generic
 asm-generic:
 	$(Q)$(MAKE) $(asm-generic)=arch/$(SRCARCH)/include/generated/asm
 
+PHONY += arch-include
+arch-include: outputmakefile asm-generic tools_fixdep
+	$(Q)$(MAKE) $(build)=include all
+	$(Q)$(MAKE) $(build)=arch/$(SRCARCH) include
+	$(Q)$(MAKE) $(build)=. arch/$(SRCARCH)/include/asm/asm-offsets.h
+
 $(TARGET).gz: $(TARGET)
 	gzip -n -f -9 < $< > $@.new
 	mv $@.new $@

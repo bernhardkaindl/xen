@@ -3,10 +3,21 @@
 
 #ifndef TOOLS_TESTS_INCLUDE_NATIVE_CONFIG_H
 #define TOOLS_TESTS_INCLUDE_NATIVE_CONFIG_H
+#define ffs libc_ffs
+#define ffsl libc_ffsl
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <limits.h>
 #include <stdio.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#undef ffsl
+#undef ffs
 
 /* Basic Xen defines */
 #define CONFIG_DEBUG
