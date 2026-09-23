@@ -128,6 +128,14 @@ endef
 
 $(foreach lib,$(LIBS_LIBS),$(eval $(call LIB_defs,$(lib))))
 
+get-srcarch = $(subst _,,$(subst 32,,$(subst 64,,$(1))))
+define native-test-cflags
+    include-arch = $(call get-srcarch,$(2))
+    $(1) += -I$(srctree)/include
+    $(1) += -I$(srctree)/arch/$(call get-srcarch,$(2))/include
+    $(1) += -I$(srctree) -I$(XEN_ROOT)/tools/tests/include
+endef
+
 # code which compiles against libxenctrl get __XEN_TOOLS__ and
 # therefore sees the unstable hypercall interfaces.
 CFLAGS_libxenctrl += -D__XEN_TOOLS__
