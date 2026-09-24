@@ -10,6 +10,7 @@
 #define E820_NVS          4
 #define E820_UNUSABLE     5
 
+#ifdef __XEN__
 struct __packed e820entry {
     uint64_t addr;
     uint64_t size;
@@ -40,4 +41,5 @@ extern struct e820map e820_raw;
 extern struct e820map bios_e820map[];
 extern unsigned int bios_e820nr;
 
+#endif /* __XEN__ */
 #endif /*__E820_HEADER*/
