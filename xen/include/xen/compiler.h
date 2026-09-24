@@ -18,7 +18,9 @@
 #endif /* Compiler checks. */
 
 /* Results in more efficient PIC code (no indirections through GOT or PLT). */
+#ifdef __XEN__
 #pragma GCC visibility push(hidden)
+#endif
 
 #define barrier()     __asm__ __volatile__("": : :"memory")
 
