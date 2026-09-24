@@ -1,7 +1,9 @@
 #ifndef __XEN_KCONFIG_H
 #define __XEN_KCONFIG_H
 
+#ifdef __XEN__
 #include <generated/autoconf.h>
+#endif
 
 /*
  * Helper macros to use CONFIG_ options in C/CPP expressions. Note that
