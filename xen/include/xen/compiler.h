@@ -140,7 +140,9 @@
 #define __must_check __attribute__((__warn_unused_result__))
 #define __nonnull(...) __attribute__((__nonnull__(__VA_ARGS__)))
 
+#ifndef offsetof
 #define offsetof(a,b) __builtin_offsetof(a,b)
+#endif
 
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 201112L
 #define alignof __alignof__
