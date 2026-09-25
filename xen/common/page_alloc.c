@@ -724,12 +724,12 @@ int domain_set_claim_entries(struct domain *d, claim_set_t *request)
     {
         uint32_t target = request->claim[i].target;
 
-        if ( target == XEN_DOMCTL_CLAIM_MEMORY_HOST )
-            continue;
-
-        ASSERT(claims && !claims[target]);
-        claims[target] = request->claim[i].pages;
-        node_claimed_pages[target] += claims[target];
+        if ( target != XEN_DOMCTL_CLAIM_MEMORY_HOST && claims )
+        {
+            ASSERT(!claims[target]);
+            claims[target] = request->claim[i].pages;
+            node_claimed_pages[target] += claims[target];
+        }
     }
 
     if ( !d->node_claims )
