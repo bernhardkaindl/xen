@@ -695,9 +695,12 @@ int domain_set_claim_entries(struct domain *d, claim_set_t *request)
         goto out_page_alloc_lock;
 
     /* Allocate claim array before taking the heap_lock */
-    if ( request->node_pages )
-        if ( !(new = xvzalloc_array(typeof(*d->claims), MAX_NUMNODES)) )
-            goto out_page_alloc_lock;
+    if ( request->node_pages &&
+         !(new = xvzalloc_array(typeof(*d->claims), MAX_NUMNODES)) )
+    {
+        ret = -ENOMEM;
+        goto out_page_alloc_lock;
+    }
 
     spin_lock(&heap_lock);
     claims = d->claims ? : new;
