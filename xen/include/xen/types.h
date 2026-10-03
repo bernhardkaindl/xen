@@ -14,7 +14,9 @@ typedef uint64_t u64;
 
 typedef __SIZE_TYPE__ size_t;
 
+#ifdef __XEN__
 typedef signed long ssize_t;
+#endif
 
 typedef __PTRDIFF_TYPE__ ptrdiff_t;
 typedef __UINTPTR_TYPE__ uintptr_t;
@@ -33,6 +35,7 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 #define NULL ((void*)0)
 #endif
 
+#ifdef __XEN__
 #define INT8_MIN        (-127-1)
 #define INT16_MIN       (-32767-1)
 #define INT32_MIN       (-2147483647-1)
@@ -52,6 +55,7 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 #define LONG_MAX        ((long)(~0UL>>1))
 #define LONG_MIN        (-LONG_MAX - 1)
 #define ULONG_MAX       (~0UL)
+#endif
 
 typedef uint16_t __le16;
 typedef uint16_t __be16;
