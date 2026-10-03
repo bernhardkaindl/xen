@@ -105,10 +105,10 @@
 #define POINTER_ALIGN   __SIZEOF_POINTER__
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-# define __LITTLE_ENDIAN
+# define __LITTLE_ENDIAN 1234
 # define __LITTLE_ENDIAN_BITFIELD
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-# define __BIG_ENDIAN
+# define __BIG_ENDIAN 4321
 # define __BIG_ENDIAN_BITFIELD
 #endif
 

@@ -11,6 +11,7 @@
 #include <xen/list.h>
 #include <xen/spinlock.h>
 #include <xen/irq.h>
+#include <xen/nospec.h>
 #include <xen/numa.h>
 #include <xen/pci_regs.h>
 #include <xen/pfn.h>
