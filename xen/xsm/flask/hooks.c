@@ -695,6 +695,9 @@ static int cf_check flask_domctl(struct domain *d, struct xen_domctl *op)
     case XEN_DOMCTL_set_memory_claims:
         return flask_claim_pages(d);
 
+    case XEN_DOMCTL_get_memory_claims:
+        return current_has_perm(d, SECCLASS_DOMAIN, DOMAIN__GETDOMAININFO);
+
     case XEN_DOMCTL_destroydomain:
         return current_has_perm(d, SECCLASS_DOMAIN, DOMAIN__DESTROY);
 
