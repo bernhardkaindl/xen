@@ -2664,6 +2664,15 @@ int xc_domain_set_llc_colors(xc_interface *xch, uint32_t domid,
                              const uint32_t *llc_colors,
                              uint32_t num_llc_colors);
 
+/*
+ * Atomically set the memory claims of a domain that has no outstanding
+ * claims, from the nr entries in claims.  Each entry claims at least one page
+ * on the NUMA node target or, with target XEN_DOMCTL_CLAIM_MEMORY_HOST,
+ * host-wide.  nr == 0 releases all claims of the domain.
+ */
+int xc_domain_set_memory_claims(xc_interface *xch, uint32_t domid, uint32_t nr,
+                                const xen_domctl_memory_claim_t *claims);
+
 #if defined(__arm__) || defined(__aarch64__)
 int xc_dt_overlay(xc_interface *xch, void *overlay_fdt,
                   uint32_t overlay_fdt_size, uint8_t overlay_op);
