@@ -128,7 +128,21 @@ mfn_t xen_map_to_mfn(unsigned long va);
  * page range in Xen virtual address space.
  */
 int populate_pt_range(unsigned long virt, unsigned long nr_mfns);
+
 /* Claim handling */
+struct xen_domctl_memory_claim;
+struct claim_set {
+    unsigned int nr_entries;
+    struct xen_domctl_memory_claim *claim;
+    /* Sums of pages, computed by domain_set_claim_entries(). */
+    unsigned long total;       /* Of all entries. */
+    unsigned long node_pages;  /* Of the node-specific entries. */
+};
+
+int domain_set_claim_entries(struct domain *d, struct claim_set *request);
+int domain_get_claim_entries(const struct domain *d,
+                             struct claim_set *request);
+
 unsigned long __must_check domain_adjust_tot_pages(struct domain *d,
     long pages);
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages);

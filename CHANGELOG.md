@@ -16,6 +16,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
      afterwards.
 
 ### Added
+ - Introduces XEN_DOMCTL_set_memory_claims/xc_domain_set_memory_claims()
+   to claim memory on specific NUMA nodes for domains to enable reliable
+   and atomic placement decisions for the node(s) a domain will run on.
+
+   This can yield noticeable guest runtime performance enhancements
+   when domain builders use it to ensure NUMA-node locality, which
+   reduces guest memory access latencies and cross-link congestion.
+ - Introduces XEN_DOMCTL_get_memory_claims/xc_domain_get_memory_claims()
+   to inspect the current detailed status of the memory claims of a domain.
 
 ### Removed
  - On x86:
