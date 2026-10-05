@@ -1,0 +1,88 @@
+xen/mm: introduce per-node NUMA memory claims
+
+The design behind this v8 submission is best introduced by
+the accompanying design documentation with this entry point:
+https://xen.kaindl.dev/claims-docs-v8/designs/claims/design.html#introduction
+
+Introduction: Xen’s page allocator supports a claims API that allows
+privileged domain builders to reserve a quantity of available memory
+before populating the guest physical memory of new domains they are
+creating, and building.
+
+These reservations are called claims. They ensure that the claimed
+memory remains available for the domains when allocating it, even
+if other domains are allocating memory at the same time, provided
+memory offlining has not removed the capacity backing the claims.
+
+Shortcomings of the current model:
+
+Currently, claims reserve page counts, not contiguous extents,
+particular address zones, or a placement policy for allocations.
+For example, claims on 1GB and 2MB superpages may be desirable
+to ensure allocations cannot not exhaust them, e.g. by splitting.
+
+The existing claims API cannot accommodate such extensions
+and reserves capacity only across the host, not on the NUMA
+nodes selected by a domain builder or specific page sizes.
+
+Host-wide claims cannot protect planned NUMA placement:
+When many domains are built in parallel, especially when
+some allocations are spread across NUMA nodes, those may
+consume memory on NUMA nodes required for NUMA placement.
+
+Improve this model:
+
+This series adds per-node claims to protect capacity
+on selected nodes, but claims do not steer allocations;
+placement remains the domain builder's responsibility.
+The API has spare bits and padding for future extensions.
+
+The atomic multi-node request follows Jan's and Roger's review feedback.
+https://lists.xen.org/archives/html/xen-devel/2025-06/msg00484.html
+The split into separate set/get paths follows internal design review.
+
+Based on that, two domctls and libxc wrappers provide the interface:
+
+1. XEN_DOMCTL_set_memory_claims/xc_domain_set_memory_claims()
+   installs all requested claims or none: at most one
+   host-wide claim and one claim per online NUMA node.
+   Installation requires no outstanding claims and must
+   precede completion of domain creation. A zero count
+   releases all outstanding claims.
+
+2. XEN_DOMCTL_get_memory_claims/xc_domain_get_memory_claims()
+   reads a domain's nonzero claims by target, separating the
+   host-wide portion not tied to a node from per-node claims.
+
+The v7 submission:
+https://lists.xen.org/archives/html/xen-devel/2026-05/msg00363.html
+
+Summary of changes in v8, the commit messages have every detail:
+
+- Split the submission into two groups of 4 patches each:
+
+  - Group 1: Protection, release, redemption and request installation.
+    1. xen/mm: protect per-node claims in get_free_buddy()
+    2. xen/mm: release per-node claims in domain_set_outstanding_pages()
+    3. xen/mm: redeem per-node claims for allocations
+    4. xen/mm: add domain_set_claims() for new claim requests
+
+  - Group 2: Handlers and xenctrl wrappers for the set and get paths.
+    5. xen/domctl: add XEN_DOMCTL_set_memory_claims
+    6. libxc: add xc_domain_set_memory_claims()
+    7. xen/domctl: add XEN_DOMCTL_get_memory_claims
+    8. libxc: add xc_domain_get_memory_claims()
+
+- Focus on the minimum amount of changes needed for review:
+  - Added lines per patch: 21, 25, 80, 189, 96, 38, 123, 39
+  - Changes not needed here are deferred to follow-up submissions.
+
+- Split the domctl into separate set and get domctl paths.
+- Convert d->claims[node] to be allocated dynamically when needed.
+- Refactor claims installation into small, focused functions.
+- Changing a set of existing claims is removed, it is not required.
+- The change to reserve_offline_pages() is removed, handle it instead.
+- Use 'per-node claims' instead of 'node-specific claims':
+  ('node-specific claims' is outdated terminology from when
+   the series only supported a single NUMA node claim.)
+- To match it, rename the feature "per-node NUMA memory claims"
