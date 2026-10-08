@@ -2664,6 +2664,29 @@ int xc_domain_set_llc_colors(xc_interface *xch, uint32_t domid,
                              const uint32_t *llc_colors,
                              uint32_t num_llc_colors);
 
+/*
+ * Atomically set the memory claims of a domain that has no outstanding
+ * claims, from the nr entries in claims.  Each entry claims at least one page
+ * on the NUMA node given as its target, or host-wide with the target
+ * XEN_DOMCTL_MEMORY_CLAIM_TARGET_HOST.  Each target may occur only once.
+ * Installing claims requires the domain to be paused.  nr == 0 releases all
+ * claims of the domain.
+ */
+int xc_domain_set_memory_claims(xc_interface *xch, uint32_t domid,
+                                const xen_domctl_memory_claim_t *claims,
+                                uint32_t nr);
+
+/*
+ * Get the memory claims of a domain.
+ * *nr is the capacity of claims on input and the number of entries on output.
+ * If the capacity is too small, fail with errno ENOBUFS:
+ * - *nr is set to the number of entries needed, but claims is not modified.
+ * - Pass *nr == 0 and claims == NULL to query the number of entries needed.
+ */
+int xc_domain_get_memory_claims(xc_interface *xch, uint32_t domid,
+                                xen_domctl_memory_claim_t *claims,
+                                uint32_t *nr);
+
 #if defined(__arm__) || defined(__aarch64__)
 int xc_dt_overlay(xc_interface *xch, void *overlay_fdt,
                   uint32_t overlay_fdt_size, uint8_t overlay_op);

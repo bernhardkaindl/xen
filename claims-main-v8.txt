@@ -1,0 +1,65 @@
+xen/mm: introduce per-node NUMA memory claims
+
+Xen currently supports only host-wide memory claims. To ensure
+NUMA-aware domain placement when building many domains in parallel,
+Xen toolstacks need memory claims for specific NUMA nodes.
+
+This series introduces such per-node claims, with two domctls and
+libxc wrappers:
+
+1. XEN_DOMCTL_set_memory_claims/xc_domain_set_memory_claims()
+   atomically installs a domain's memory claims: at most one host-wide
+   claim and at most one claim on each NUMA node. This allows a domain
+   builder to reserve memory on the NUMA nodes where the domain will be
+   placed.
+
+2. XEN_DOMCTL_get_memory_claims/xc_domain_get_memory_claims() reads
+   a domain's host-wide claim and per-node claims for toolstacks and
+   tests.
+
+The design for protecting such claims on NUMA nodes has already been
+integrated into XenServer 9, which is used in production. As requested
+by Jan and Roger in previous reviews, one call installs claims on
+multiple NUMA nodes atomically:
+
+> Ideally, we would need to introduce a new hypercall that allows
+> making claims from multiple nodes in a single locked region, as to
+> ensure success or failure in an atomic way. (Roger Pau Monné)
+
+The message with that quote:
+https://lists.xenproject.org/archives/html/xen-devel/2025-06/msg00484.html
+
+The host-wide XENMEM_claim_pages infrastructure is preserved and reused.
+A later series can consolidate the implementations and deprecate
+XENMEM_claim_pages. Deferring that keeps this series focused.
+
+Tested with updated and improved system and integration tests
+for memory claims. They will be submitted as a separate series,
+as will other dependent work for improving Xen NUMA support.
+
+The v7 submission:
+https://lists.xenproject.org/archives/html/xen-devel/2026-05/msg00363.html
+
+Changes in v8 (incorporating v7 review feedback):
+
+Overall changes:
+
+- Split the submission into smaller patches as requested in review.
+- Defer changes beyond the minimum viable product to a later series.
+- Name the feature "per-node NUMA memory claims", and use "per-node
+  claims" instead of "node-specific claims" in messages and comments.
+
+Patch-specific changes:
+
+- Patches 1-4 have no functional effect until patch 5 adds the domctl.
+- Patch 1 is extracted mostly unchanged (and is used in XenServer 9).
+- Patches 2 and 3 are extracted and refactored, functionally equivalent
+  to v7.
+- Patch 4 is based on the v7 design, but has many significant changes:
+  - Refactor the code into smaller functions, improving code quality.
+  - Allocate the d->claims[] array on demand, as suggested in review.
+  - Remove the capability to replace claims, simplifying the code.
+- Patches 5-8 split the interface into independent set and get call
+  graphs, based on the v7 review.
+- Patch 5 installs claims only while the domain is paused, so the
+  domain cannot allocate memory in parallel.
