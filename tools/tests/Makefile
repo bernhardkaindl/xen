@@ -17,6 +17,7 @@ SUBDIRS-$(CONFIG_X86) += tsx
 ifneq ($(clang),y)
 SUBDIRS-$(CONFIG_X86) += x86_emulator
 endif
+SUBDIRS-$(CONFIG_X86) += claims
 
 .PHONY: all clean install distclean uninstall
 all clean distclean install uninstall: %: subdirs-%
