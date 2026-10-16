@@ -1,0 +1,32 @@
+/* Customisations for the PyData theme. */
+
+/* Disable default header spacing */
+.bd-header .bd-header__inner {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+/* Xen logo revision styling below the main Xen version string */
+.xen-logo-revision {
+    display: block;
+    font-size: 0.6em;
+    line-height: 1.1;
+}
+
+/* Center the Xen revision (git hash) below the Xen version string */
+.navbar-brand .logo__title {
+    text-align: center;
+    line-height: 1.1;
+}
+
+/* Disable the automatic hyperlink underline decoration on logo hover */
+a.navbar-brand.logo:hover {
+    text-decoration: none;
+}
+
+/* Update the currently active version's background color */
+.bd-header .dropdown-menu .dropdown-item.active,
+.bd-header .dropdown-menu .dropdown-item[aria-current="true"] {
+    background-color: #444 !important; /* Use dark gray background */
+    color: #fff !important; /* Ensure the text remains white */
+}
