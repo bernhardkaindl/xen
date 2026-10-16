@@ -1,0 +1,11 @@
+/*
+ * Custom CSS for the PyData Sphinx Theme to adjust the colors of the version
+ * dropdown menu to be more visible and user-friendly for the bright mode too.
+ */
+
+/* Update the currently active version's background color */
+.bd-header .dropdown-menu .dropdown-item.active,
+.bd-header .dropdown-menu .dropdown-item[aria-current="true"] {
+    background-color: #444 !important; /* Use dark gray background */
+    color: #fff !important; /* Ensure the text remains white */
+}

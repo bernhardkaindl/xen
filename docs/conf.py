@@ -7,6 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import importlib
+import json
 import os
 import sys
 
@@ -28,7 +29,7 @@ import sphinx
 project = u'Xen'
 copyright = u'2019-%Y, The Xen development community'
 author = u'The Xen development community'
-theme = os.environ.get("XEN_SPHINX_THEME", "rtd")
+theme = os.environ.get("XEN_SPHINX_THEME", "pydata")
 
 if sphinx.version_info < (8, 1):
     from datetime import datetime
@@ -53,6 +54,24 @@ finally:
         release = version + xen_extra
     else:
         version = release = u"unknown version"
+
+
+def git_branch():
+    try:
+        import git
+    except ImportError:
+        sys.stderr.write("Warning: Could not load the git module.\n")
+        return "master"
+
+    try:
+        repo = git.Repo(search_parent_directories=True)
+        return repo.active_branch.name
+    except git.InvalidGitRepositoryError:
+        return "master"
+    except TypeError:
+        sys.stderr.write("Warning: Git HEAD is in a detached state.\n")
+        return "master"
+
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -123,6 +142,7 @@ html_static_path = []
 html_logo_bright_mode = "_static/logo-xen.svg"
 html_logo_dark_mode = "_static/logo-xen-reverse.svg"
 html_favicon = "_static/favicon-xen-32x32.png"
+html_js_files = []
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
@@ -147,9 +167,89 @@ try:
     # see the documentation of that theme. e.g. for sphinx_book_theme, see
     # https://sphinx-book-theme.readthedocs.io/en/latest/configure.html#options
 
+    # Include custom CSS and JS files for the version switcher
+    if html_theme in ("sphinx_book_theme", "pydata_sphinx_theme"):
+        html_css_files = ['pydata-custom.css']
+        html_js_files.extend(["rtd-versions.js"])
+        html_static_path.append("_static")
+
+    version_switcher_json = "version-switcher.json"
+    xen_release = f"Xen {release.replace('-', '<br>-')}"
+    pydata_common_options = {
+        "logo": {
+            "text": f"<center><smaller>{xen_release}</smaller></center>",
+            "image_light": html_logo_bright_mode,
+            "image_dark": html_logo_dark_mode,
+        },
+        "icon_links": [
+            {
+                "name": "Xen Project",
+                "url": "https://xenproject.org/",
+                "icon": html_favicon,
+                "type": "local"
+            },
+            {
+                "name": "GitHub",
+                "url": "https://github.com/xen-project/xen",
+                "icon": "fa-brands fa-square-github",
+                "type": "fontawesome",
+            },
+            {
+                "name": "GitLab",
+                "url": "https://gitlab.com/xen-project/xen",
+                "icon": "fa-brands fa-square-gitlab",
+                "type": "fontawesome",
+            },
+        ],
+        "switcher": {
+            "json_url": f"_static/{version_switcher_json}",
+            "version_match": git_branch()
+        },
+        "show_toc_level": 3,
+        "use_edit_page_button": True,
+    }
+    github_url = "https://github.com/bernhardkaindl/xen"
     if html_theme == "sphinx_rtd_theme":
         html_logo = html_logo_dark_mode  # Logo is on a darker background in rtd
-
+    elif html_theme == 'sphinx_book_theme':
+        html_theme_options = {
+            "home_page_in_toc": True,
+            "path_to_docs": "docs",
+            "repository_url": github_url,
+            "repository_branch": git_branch(),
+            "use_repository_button": True,
+            "use_source_button": True,
+            "navbar_center": ["navbar-nav.html"],
+            "navbar_end": [
+                "version-switcher.html",
+                "navbar-icon-links",
+            ],
+            "navbar_persistent": [],
+        }
+        html_theme_options.update(pydata_common_options)
+        html_sidebars = {
+            "**": [
+                "navbar-logo.html",
+                "sbt-sidebar-nav.html",
+                "indices.html"
+            ],
+        }
+    elif html_theme == "pydata_sphinx_theme":
+        html_theme_options = {
+            "navbar_center": ["navbar-nav.html"],
+            "navbar_end": [
+                "search-button.html",
+                "version-switcher",
+                "theme-switcher"
+            ],
+        }
+        html_theme_options.update(pydata_common_options)
+        html_context = {  # Edit button
+            "github_user": "bernhardkaindl",
+            "github_repo": "xen",
+            "github_version": git_branch(),
+            "doc_path": "docs"
+        }
 except ImportError:
     sys.stderr.write(
         f"{theme_mod} was not found, falling back to the default theme.\n"
@@ -169,7 +269,7 @@ def on_build_finished(app, exception):
     theme_pip = theme_mod.replace('_', '-')
     common_install = f"""\n
         Alternatively, you can use pipx to install sphinx and the needed
-        extras in an isolated environment with:{theme_mod}\n
+        extras in an isolated environment with:\n
             pipx install sphinx
             pipx runpip sphinx install -r docs/requirements.txt {theme_pip}\n
         Or, use `make -C docs sphinx-build` to build the documentation
@@ -178,6 +278,19 @@ def on_build_finished(app, exception):
     # See https://sphinx-book-theme.readthedocs.io for more info:
     if sys.modules.get(theme_mod):
         print(f"Using the `{html_theme}` HTML theme for rendering the docs.")
+        if (app.builder.format == "html" and
+                html_theme in ("pydata_sphinx_theme", "sphinx_book_theme")):
+            current_branch = git_branch()
+            switcher_data = [
+                {
+                    "name": current_branch,
+                    "version": current_branch,
+                    "url": "/"
+                }
+            ]
+            out = os.path.join(app.outdir, "_static", version_switcher_json)
+            with open(out, "w") as f:
+                json.dump(switcher_data, f)
     else:
         sys.stderr.write(f"""
         To fix rendering the HTML theme, install `{theme_pip}` in
