@@ -1,0 +1,19 @@
+%% SPDX-License-Identifier: CC-BY-4.0
+%% Accounting identities and conditional capacity bounds
+flowchart TD
+
+subgraph Accounting["Claims identities protected by heap_lock"]
+    entries["d->claims[n]: outstanding pages on node n"]
+    subtotal["d->node_claims = sum of d->claims[n]"]
+    total["d->outstanding_pages = node subtotal + host-wide claim"]
+    nodes["node_claimed_pages[n] = sum of domains' claims on node n"]
+    host["outstanding_claims = sum of domains' outstanding_pages"]
+    entries --> subtotal --> total --> host
+    entries --> nodes
+end
+subgraph Capacity["Capacity bounds"]
+    node_free["node_avail_pages[n]: free pages including claimed pages"]
+    host_free["total_avail_pages: free pages across all nodes"]
+    nodes -->|"at most"| node_free
+    host -->|"at most"| host_free
+end

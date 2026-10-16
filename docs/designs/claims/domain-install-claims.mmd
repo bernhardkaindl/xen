@@ -1,0 +1,27 @@
+flowchart TD
+    start(["domain_install_claims<br/>(page_alloc_lock held throughout)"])
+    lock_heap["Acquire heap_lock"]
+    active{"Outstanding claims exist?"}
+    active_error["ret = -EINVAL"]
+    memory{"Enough unclaimed memory<br/>host-wide and per target node?"}
+    memory_error["ret = -ENOMEM"]
+    totals["Set domain claim totals;<br/>increase outstanding_claims"]
+    swap["Install new per-node array;<br/>return old array for cleanup"]
+    account["Populate per-node claims;<br/>increase node_claimed_pages"]
+    unlock_heap["Release heap_lock"]
+    finish(["Return ret to domain_set_claims<br/>(page_alloc_lock still held)"])
+
+    start --> lock_heap --> active
+    active -- Yes --> active_error --> unlock_heap
+    active -- No --> memory
+    memory -- No --> memory_error --> unlock_heap
+    memory -- Yes --> totals --> swap --> account
+    account -- ret = 0 --> unlock_heap
+    unlock_heap --> finish
+
+    classDef lock fill:#e0f2fe,stroke:#0369a1,color:#0c4a6e
+    classDef commit fill:#dcfce7,stroke:#15803d,color:#14532d
+    classDef error fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
+    class lock_heap,unlock_heap lock
+    class totals,swap,account commit
+    class active_error,memory_error error

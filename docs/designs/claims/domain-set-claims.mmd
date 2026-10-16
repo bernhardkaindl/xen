@@ -1,0 +1,27 @@
+flowchart TD
+    start(["domain_set_claims"])
+    lock_page["Acquire d->page_alloc_lock"]
+    validate["Call domain_validate_claim_request<br/>(see its flowchart page)"]
+    valid{"Valid request?"}
+    need_array{"Per-node claims requested?"}
+    allocate["Allocate zeroed per-node array"]
+    allocated{"Allocation succeeded?"}
+    alloc_error["ret = -ENOMEM"]
+    install["Call domain_install_claims<br/>(see its flowchart page)"]
+    unlock_page["Release d->page_alloc_lock"]
+    cleanup["Free unused new array on failure,<br/>or replaced old array on success (if any)"]
+    finish(["Return ret"])
+
+    start --> lock_page --> validate --> valid
+    valid -- No: validation error --> unlock_page
+    valid -- Yes --> need_array
+    need_array -- Yes --> allocate --> allocated
+    allocated -- No --> alloc_error --> unlock_page
+    allocated -- Yes --> install
+    need_array -- No: host-wide only --> install
+    install --> unlock_page --> cleanup --> finish
+
+    classDef lock fill:#e0f2fe,stroke:#0369a1,color:#0c4a6e
+    classDef error fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
+    class lock_page,unlock_page lock
+    class alloc_error error

@@ -10,7 +10,8 @@ and for those interested in the internal workings of Xen.
 
 .. toctree::
    :maxdepth: 2
-   :numbered: 4
+   :numbered: 2
 
    launch/index
    llc-coloring
+   claims/index
