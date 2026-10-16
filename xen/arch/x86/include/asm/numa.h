@@ -2,8 +2,7 @@
 #define _ASM_X8664_NUMA_H 1
 
 #include <xen/cpumask.h>
-
-typedef u8 nodeid_t;
+#include <xen/numa.h>
 
 extern int srat_rev;
 

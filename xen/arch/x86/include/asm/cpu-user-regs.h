@@ -9,6 +9,7 @@
  * interrupt, exception or syscall.  The layout is dictated by the hardware
  * format for the event frame, with software filling in the rest.
  */
+#ifdef __XEN__
 struct cpu_user_regs
 {
     union { uint64_t r15;    uint32_t r15d;   uint16_t r15w;  uint8_t r15b; };
@@ -100,6 +101,8 @@ struct cpu_user_regs
      * struct cpu_info.  It must be 16-byte aligned.
      */
 };
+#endif /* __XEN__ */
+
 struct fred_info
 {
     /*

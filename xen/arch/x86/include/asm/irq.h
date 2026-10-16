@@ -4,7 +4,7 @@
 /* (C) 1992, 1993 Linus Torvalds, (C) 1997 Ingo Molnar */
 
 #include <asm/atomic.h>
-#include <asm/numa.h>
+#include <xen/numa.h>
 #include <xen/cpumask.h>
 #include <xen/percpu.h>
 #include <xen/smp.h>
