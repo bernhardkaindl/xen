@@ -1730,6 +1730,9 @@ int domain_unpause_by_systemcontroller(struct domain *d)
             return -EBUSY;
         }
         d->creation_finished = true;
+
+        /* Release any memory claims left over from domain creation. */
+        domain_set_outstanding_pages(d, 0);
         arch_domain_creation_finished(d);
     }
 
