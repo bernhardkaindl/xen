@@ -3,11 +3,11 @@
 
 #include <xen/mm-frame.h>
 
+typedef uint8_t nodeid_t;
+
 #ifdef CONFIG_NUMA
 #include <xen/pdx.h>
 #include <asm/numa.h>
-#else
-typedef uint8_t nodeid_t;
 #endif
 
 #define NUMA_NO_NODE     0xFF

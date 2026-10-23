@@ -4,6 +4,9 @@
 
 #include <xen/stdint.h>
 
+#ifndef __XEN__
+#include <public/xen.h> /* provides public cpu_user_regs definitions */
+#else
 /*
  * cpu_user_regs represents the interrupted GPR state at the point of an
  * interrupt, exception or syscall.  The layout is dictated by the hardware
@@ -100,6 +103,8 @@ struct cpu_user_regs
      * struct cpu_info.  It must be 16-byte aligned.
      */
 };
+#endif /* __XEN__ */
+
 struct fred_info
 {
     /*
