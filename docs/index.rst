@@ -51,23 +51,6 @@ kind of development environment.
    :maxdepth: 2
 
    hypervisor-guide/index
-   misc/ci
-
-
-Unsorted documents
-------------------
-
-Documents in need of some rearranging.
-
-.. toctree::
-   :maxdepth: 2
-
-   designs/launch/hyperlaunch
-   designs/launch/hyperlaunch-devicetree
-   misc/xen-makefiles/makefiles
-   misra/index
-   fusa/index
-   misc/cache-coloring
 
 
 Miscellanea
@@ -75,5 +58,4 @@ Miscellanea
 
 .. toctree::
 
-   faq
    glossary

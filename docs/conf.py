@@ -6,7 +6,12 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import importlib
+import json
+import os
 import sys
+from html import escape
+from urllib.parse import quote, urlsplit
 
 # -- Path setup --------------------------------------------------------------
 
@@ -26,6 +31,7 @@ import sphinx
 project = u'Xen'
 copyright = u'2019-%Y, The Xen development community'
 author = u'The Xen development community'
+theme = os.environ.get("XEN_SPHINX_THEME", "pydata")
 
 if sphinx.version_info < (8, 1):
     from datetime import datetime
@@ -51,17 +57,141 @@ finally:
     else:
         version = release = u"unknown version"
 
+
+def git_branch():
+    identifier = os.environ.get("READTHEDOCS_GIT_IDENTIFIER")
+    if identifier:
+        return identifier
+
+    try:
+        import git
+    except ImportError:
+        sys.stderr.write("Warning: Could not load the git module.\n")
+        return "master"
+
+    try:
+        repo = git.Repo(search_parent_directories=True)
+        return repo.active_branch.name
+    except git.InvalidGitRepositoryError:
+        return "master"
+    except TypeError:
+        sys.stderr.write("Warning: Git HEAD is in a detached state.\n")
+        return "master"
+
+
+def source_repository():
+    """Get the source repository URL for the edit button on Read the Docs."""
+    url = os.environ.get("READTHEDOCS_GIT_CLONE_URL")
+    if not url:
+        try:
+            import git
+        except ImportError:
+            return None
+
+        else:
+            try:
+                repo = git.Repo(search_parent_directories=True)
+                tracking = repo.active_branch.tracking_branch()
+                if tracking and tracking.remote_name != ".":
+                    url = repo.remote(tracking.remote_name).url
+            except (git.InvalidGitRepositoryError, ValueError, TypeError):
+                pass
+
+    if not url:
+        return None
+
+    if "://" not in url and "@" in url and ":" in url:
+        host, path = url.split(":", 1)
+        url = f"ssh://{host}/{path}"
+
+    parsed = urlsplit(url)
+    if parsed.scheme not in ("https", "ssh"):
+        return None
+
+    parts = parsed.path.strip("/").removesuffix(".git").split("/")
+    provider = None
+    prefix = ""
+    for candidate in ("github", "gitlab"):
+        if parsed.hostname and candidate in parsed.hostname.split("."):
+            provider = candidate
+            break
+        if candidate in parts[:-2]:
+            index = parts.index(candidate) + 1
+            prefix = "/" + "/".join(parts[:index])
+            parts = parts[index:]
+            provider = candidate
+            break
+
+    if (
+        provider in ("github", "gitlab")
+        and parsed.hostname
+        and len(parts) >= 2
+        and all(parts)
+    ):
+        port = (
+            f":{parsed.port}"
+            if parsed.port and parsed.scheme == "https"
+            else ""
+        )
+        return {
+            "provider": provider,
+            "url": f"https://{parsed.hostname}{port}{prefix}",
+            "user": "/".join(parts[:-1]),
+            "repo": parts[-1],
+        }
+
+    return None
+
+
+def git_commit():
+    commit = os.environ.get("READTHEDOCS_GIT_COMMIT_HASH")
+    if commit:
+        return commit[:7]
+
+    try:
+        import git
+    except ImportError:
+        return None
+
+    try:
+        return git.Repo(search_parent_directories=True).head.commit.hexsha[:7]
+    except (git.InvalidGitRepositoryError, ValueError):
+        return None
+
+
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 # If your documentation needs a minimal Sphinx version, state it here.
 #
-needs_sphinx = '1.4'
+# Current Sphinx themes will soon depend on Sphinx >= 8.0 (released in 2024)
+needs_sphinx = "8.0"
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = []
+
+
+# autosectionlabel allows referencing sections using their title, without
+# needing to add explicit labels to each section. Used by design documents.
+extensions.append("sphinx.ext.autosectionlabel")
+# Setting autosectionlabel_prefix_document to True allows disambiguating
+# between sections with the same title in different documents by prefixing
+# the label with the document path.
+autosectionlabel_prefix_document = True
+
+
+# Mermaid diagrams are used in the design documents, so we try to
+# load the extension if it's available, but don't fail if it's not:
+try:
+    import sphinxcontrib.mermaid
+
+    extensions.append("sphinxcontrib.mermaid")
+    # For included Mermaid diagram files, init the extension explicitly.
+    mermaid_init_js = "mermaid.initialize({ startOnLoad: true });"
+except ImportError:
+    pass
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -82,7 +212,7 @@ language = 'en'
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = [u'sphinx/output', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ["sphinx/output", "Thumbs.db", ".DS_Store", ".sphinx"]
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = None
@@ -92,16 +222,6 @@ highlight_language = 'none'
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
-
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes.
-#
-try:
-    import sphinx_rtd_theme
-    html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-except ImportError:
-    sys.stderr.write('Warning: The Sphinx \'sphinx_rtd_theme\' HTML theme was not found. Make sure you have the theme installed to produce pretty HTML output. Falling back to the default theme.\n')
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -123,6 +243,207 @@ html_static_path = []
 # 'searchbox.html']``.
 #
 # html_sidebars = {}
+
+# -- Options for HTML themes -------------------------------------------------
+
+html_logo_bright_mode = "_static/logo-xen.svg"
+html_logo_dark_mode = "_static/logo-xen-reverse.svg"
+html_favicon = "_static/favicon-xen-32x32.png"
+html_js_files = []
+
+# The theme to use for HTML and HTML Help pages.  See the documentation for
+# a list of builtin themes.
+#
+if theme == "rtd":  # RTD is the familiar theme by Read the Docs
+    theme_mod = "sphinx_rtd_theme"
+    theme_deb = "python3-sphinx-rtd-theme"
+elif theme == "book":  # Theme with bright&dark modes based on the pydata theme
+    theme_mod = "sphinx_book_theme"
+    theme_deb = "python3-sphinx-book-theme"
+else:  # pydata and other themes:
+    theme_mod = f"{theme}_sphinx_theme"
+    theme_deb = f"python3-{theme}-sphinx-theme"
+
+
+try:
+    importlib.import_module(theme_mod)
+    html_theme = theme_mod
+
+    # Theme options are theme-specific and customize the look and feel
+    # of a theme further. For a list of options available for each theme,
+    # see the documentation of that theme. e.g. for sphinx_book_theme, see
+    # https://sphinx-book-theme.readthedocs.io/en/latest/configure.html#options
+
+    # Include custom CSS and JS files for the version switcher
+    if html_theme in ("sphinx_book_theme", "pydata_sphinx_theme"):
+        html_css_files = ['pydata-custom.css']
+        html_js_files.extend(["rtd-versions.js"])
+        html_static_path.append("_static")
+
+    version_switcher_json = "version-switcher.json"
+    docs_version = os.environ.get("READTHEDOCS_VERSION") or git_branch()
+    xen_release = f"Xen {escape(release.removesuffix('-unstable'))}"
+    commit = git_commit()
+    if commit:
+        xen_release += (
+            f'<span class="xen-logo-revision">(git{escape(commit)})</span>')
+    pydata_common_options = {
+        "logo": {
+            "text": xen_release,
+            "image_light": html_logo_bright_mode,
+            "image_dark": html_logo_dark_mode,
+        },
+        "icon_links": [
+            {
+                "name": "Xen Project",
+                "url": "https://xenproject.org/",
+                "icon": html_favicon,
+                "type": "local"
+            },
+            {
+                "name": "GitHub",
+                "url": "https://github.com/xen-project/xen",
+                "icon": "fa-brands fa-square-github",
+                "type": "fontawesome",
+            },
+            {
+                "name": "GitLab",
+                "url": "https://gitlab.com/xen-project/xen",
+                "icon": "fa-brands fa-square-gitlab",
+                "type": "fontawesome",
+            },
+        ],
+        "switcher": {
+            "json_url": "data:application/json," + quote(json.dumps([
+                {"name": docs_version, "version": docs_version, "url": "/"}
+            ])),
+            "version_match": docs_version
+        },
+        "show_toc_level": 3,
+        "check_switcher": False,
+        "use_edit_page_button": True,
+    }
+    if os.environ.get("READTHEDOCS_VERSION"):
+        pydata_common_options.pop("switcher")
+
+    repository = source_repository()
+    repository_url = (
+        f"{repository['url']}/{repository['user']}/{repository['repo']}"
+        if repository
+        else None
+    )
+    pydata_common_options["use_edit_page_button"] = (
+        repository is not None and
+        os.environ.get("READTHEDOCS_VERSION_TYPE") != "external")
+    if html_theme == "sphinx_rtd_theme":
+        html_logo = html_logo_dark_mode  # Logo is on a darker background in rtd
+    elif html_theme == 'sphinx_book_theme':
+        html_theme_options = {
+            "home_page_in_toc": True,
+            "path_to_docs": "docs",
+            "repository_url": repository_url,
+            "repository_branch": git_branch(),
+            "use_repository_button": repository is not None,
+            "use_source_button": repository is not None,
+            "navbar_center": ["navbar-nav.html"],
+            "navbar_end": [
+                "version-switcher.html",
+                "navbar-icon-links",
+            ],
+            "navbar_persistent": [],
+        }
+        html_theme_options.update(pydata_common_options)
+        html_sidebars = {
+            "**": [
+                "navbar-logo",
+                "sbt-sidebar-nav",
+                "indices"
+            ],
+        }
+    elif html_theme == "pydata_sphinx_theme":
+        html_theme_options = {
+            "navbar_center": ["navbar-nav"],
+            "navbar_end": [
+                "search-button",
+                "version-switcher",
+                "theme-switcher"
+            ],
+        }
+        html_theme_options.update(pydata_common_options)
+        if repository:
+            provider = repository["provider"]
+            html_context = {  # Edit button
+                f"{provider}_url": repository["url"],
+                f"{provider}_user": repository["user"],
+                f"{provider}_repo": repository["repo"],
+                f"{provider}_version": git_branch(),
+                "doc_path": "docs"
+            }
+except ImportError:
+    sys.stderr.write(
+        f"{theme_mod} was not found, falling back to the default theme.\n"
+    )
+
+
+# Notify users about missing dependencies and how to install them,
+# and do so after the build is finished to be seen more easily:
+def on_build_finished(app, exception):
+    """
+    Hook to run after the build is finished, to check for missing
+    theme and extensions and print instructions for installing them.
+    """
+    if exception:  # If an exception don't add unrelated instructions
+        return
+
+    theme_pip = theme_mod.replace('_', '-')
+    common_install = f"""\n
+        Alternatively, you can use pipx to install sphinx and the needed
+        extras in an isolated environment with:\n
+            pipx install sphinx
+            pipx runpip sphinx install -r docs/requirements.txt {theme_pip}\n
+        Or, use `make -C docs sphinx-build` to build the documentation
+        in a suitable Python environment with all dependencies.\n"""
+
+    # See https://sphinx-book-theme.readthedocs.io for more info:
+    if sys.modules.get(theme_mod):
+        print(f"Using the `{html_theme}` HTML theme for rendering the docs.")
+        if (app.builder.format == "html" and
+                html_theme in ("pydata_sphinx_theme", "sphinx_book_theme")):
+            switcher_data = [
+                {
+                    "name": (os.environ.get("READTHEDOCS_VERSION_NAME") or
+                             docs_version),
+                    "version": docs_version,
+                    # Local autobuild serves at /; RTD replaces this URL.
+                    # Other deployment roots are not known at build time.
+                    "url": "/"
+                }
+            ]
+            out = os.path.join(app.outdir, "_static", version_switcher_json)
+            with open(out, "w") as f:
+                json.dump(switcher_data, f)
+    else:
+        sys.stderr.write(f"""
+        To fix rendering the HTML theme, install `{theme_pip}` in
+        your Python venv. On Debian-based systems, you can install it with:\n
+            sudo apt install {theme_deb}""" + common_install)
+
+    # See https://github.com/sphinx-doc/sphinx-autobuild#readme for more info:
+    try:
+        import sphinx_autobuild
+    except ImportError:
+        print(f"""The generated documentation is available at:\n
+        file://{app.outdir}/index.html\n
+        To auto-rebuild and auto-refresh on changes, install
+        `sphinx-autobuild` in your Python venv and run:
+         sphinx-autobuild docs {app.outdir}\n
+        Or simply use `make -C docs sphinx-autobuild` to build & serve
+        the documentation with auto-rebuild and auto-refresh on changes.
+        """)
+
+
+def setup(app):
+    app.connect("build-finished", on_build_finished)
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
