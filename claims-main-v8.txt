@@ -1,0 +1,98 @@
+xen/mm: introduce per-node NUMA memory claims
+
+Xen currently supports only host-wide memory claims.
+These reserve capacity across the host, not on the NUMA
+nodes selected by a domain builder.
+
+When domain builds run in parallel, allocations for one
+build can consume memory on nodes selected for another,
+while claimed capacity remains available elsewhere.
+Host-wide claims therefore cannot protect planned NUMA
+placement.
+
+This series adds per-node claims to protect capacity on
+selected nodes. Claims do not steer allocations; placement
+remains the domain builder's responsibility. Two domctls
+and libxc wrappers provide the interface:
+
+1. XEN_DOMCTL_set_memory_claims/xc_domain_set_memory_claims()
+   installs all requested claims or none: at most one
+   host-wide claim and one claim per online NUMA node.
+   Installation requires no outstanding claims and must
+   precede completion of domain creation. A zero count
+   releases all outstanding claims.
+
+2. XEN_DOMCTL_get_memory_claims/xc_domain_get_memory_claims()
+   reads a domain's nonzero claims by target, separating the
+   host-wide portion not tied to a node from per-node claims.
+
+Ref-counted allocations redeem claims on the allocation
+node first, then the host-wide portion, then claims on
+other nodes. Resetting claims or destroying the domain
+releases the remaining claims.
+
+The domain builder must serialize claim installation with
+allocations for the domain, including completion of any
+allocation continuations. The target domain being paused
+does not prevent its builder from allocating for it.
+
+The node-protection mechanism has been deployed in
+XenServer 9 production installations. The atomic multi-node
+request follows Jan's and Roger's review feedback:
+
+> Ideally, we would need to introduce a new hypercall that allows
+> making claims from multiple nodes in a single locked region, as to
+> ensure success or failure in an atomic way. (Roger Pau Monné)
+
+The message with that quote:
+https://lists.xen.org/archives/html/xen-devel/2025-06/msg00484.html
+
+XENMEM_claim_pages remains unchanged; the new interface
+reuses the existing host-wide accounting. Consolidating
+the entry points is outside this series.
+
+Tested with system and integration tests. These include
+finite arithmetic models of two domains and four NUMA nodes.
+The models check host-wide admission, credit for a domain's
+own node claims, and redemption from the allocation node,
+the host-wide portion and other nodes. They check exact
+redemption and preservation of other domains' claims.
+The test changes are intended for separate submission.
+
+Related work, outside these eight patches:
+- Reporting claimed and unclaimed capacity per NUMA node.
+- Reporting a domain's actual NUMA memory placement.
+- Releasing leftover claims when domain creation finishes.
+  The existing x86 libxenguest path already resets claims
+  after physmap population; domain destruction also resets
+  them.
+
+The v7 submission:
+https://lists.xen.org/archives/html/xen-devel/2026-05/msg00363.html
+
+Changes in v8 (incorporating v7 review feedback):
+
+Overall changes:
+
+- Split the submission into eight topic-focused patches.
+- Keep capacity reporting, placement reporting and cleanup
+  on completion of domain creation outside this series.
+- Name the feature "per-node NUMA memory claims", and use "per-node
+  claims" instead of "node-specific claims" in messages and comments.
+
+Patch-specific changes:
+
+- Patches 1-4 prepare protection, release, redemption and
+  request installation without exposing a new hypercall.
+- Patch 1 clamps available capacity at zero if offlining
+  reduces a node's free memory below outstanding claims.
+- Patches 2 and 3 separate claim release from redemption.
+- Patch 4 separates validation, admission and installation,
+  allocates d->claims only for per-node requests, and rejects
+  replacement of outstanding claims.
+- Patches 5 and 6 add the set domctl and libxc wrapper.
+  Installation is limited to domain build; release remains
+  allowed in any domain state.
+- Patches 7 and 8 add the independent query domctl and wrapper,
+  with nonzero entries, count queries and ENOBUFS reporting
+  so callers can resize and retry.
