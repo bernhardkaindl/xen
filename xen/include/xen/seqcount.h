@@ -6,6 +6,7 @@
 #include <xen/nospec.h>
 
 #include <asm/atomic.h>
+#include <asm/processor.h>
 #include <asm/system.h>
 
 /*

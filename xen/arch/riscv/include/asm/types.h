@@ -10,7 +10,9 @@ typedef u32 vaddr_t;
 typedef u64 paddr_t;
 #define INVALID_PADDR (~0ULL)
 #define PRIpaddr "016llx"
+#ifdef __XEN__
 typedef u32 register_t;
+#endif
 #define PRIregister "x"
 
 #elif defined (CONFIG_RISCV_64)
@@ -20,7 +22,9 @@ typedef u64 vaddr_t;
 typedef u64 paddr_t;
 #define INVALID_PADDR (~0UL)
 #define PRIpaddr "016lx"
+#ifdef __XEN__
 typedef u64 register_t;
+#endif
 #define PRIregister "lx"
 
 #endif
