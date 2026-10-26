@@ -532,6 +532,65 @@ static void domain_release_outstanding_pages(struct domain *d,
     d->outstanding_pages -= pages;
 }
 
+/* Release up to @pages of the host-wide claim; return the pages released. */
+static unsigned long domain_release_host_claims(struct domain *d,
+                                                unsigned long pages)
+{
+    unsigned long host_claims;
+
+    ASSERT(spin_is_locked(&heap_lock));
+    ASSERT(d->outstanding_pages >= d->node_claims);
+    host_claims = d->outstanding_pages - d->node_claims;
+    if ( pages > host_claims )
+        pages = host_claims;
+
+    domain_release_outstanding_pages(d, pages);
+
+    return pages;
+}
+
+/* Release up to @pages of the claim on @node; return the pages released. */
+static unsigned long domain_release_node_claims(struct domain *d,
+                                                unsigned int node,
+                                                unsigned long pages)
+{
+    ASSERT(spin_is_locked(&heap_lock));
+
+    if ( !d->node_claims )
+        return 0;
+    if ( pages > d->claims[node] )
+        pages = d->claims[node];
+
+    ASSERT(node_claimed_pages[node] >= pages);
+    ASSERT(d->node_claims >= pages);
+
+    node_claimed_pages[node] -= pages;
+    d->claims[node] -= pages;
+    d->node_claims -= pages;
+    domain_release_outstanding_pages(d, pages);
+
+    return pages;
+}
+
+/* Release exactly @pages of node-specific claims, which must exist. */
+static void domain_reduce_node_claims(struct domain *d, unsigned long pages)
+{
+    unsigned long released = 0;
+    unsigned int node;
+
+    ASSERT(spin_is_locked(&heap_lock));
+
+    for_each_online_node ( node )
+    {
+        if ( released == pages || !d->node_claims )
+            break;
+
+        released += domain_release_node_claims(d, node, pages - released);
+    }
+
+    ASSERT(released == pages);
+}
+
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 {
     int ret = -ENOMEM;
@@ -1099,7 +1158,12 @@ static struct page_info *alloc_heap_pages(
         unsigned long outstanding = min(d->outstanding_pages + 0UL, request);
 
         BUG_ON(outstanding > outstanding_claims);
-        domain_release_outstanding_pages(d, outstanding);
+        /* Preserve other node guarantees: consume the local claim first. */
+        outstanding -= domain_release_node_claims(d, node, outstanding);
+        /* Host-wide claims are not tied to another node's guarantee. */
+        outstanding -= domain_release_host_claims(d, outstanding);
+        /* Keep allocated pages plus claims within the domain's limit. */
+        domain_reduce_node_claims(d, outstanding);
     }
 
     check_low_mem_virq();
