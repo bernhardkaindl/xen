@@ -136,7 +136,8 @@ class domain
     getaffinity
 # XEN_DOMCTL_scheduler_op with XEN_DOMCTL_SCHEDOP_getinfo
     getscheduler
-# XEN_DOMCTL_getdomaininfo, XEN_SYSCTL_getdomaininfolist
+# XEN_DOMCTL_getdomaininfo, XEN_SYSCTL_getdomaininfolist,
+# XEN_DOMCTL_get_memory_claims
     getdomaininfo
 # XEN_DOMCTL_getvcpuinfo
     getvcpuinfo

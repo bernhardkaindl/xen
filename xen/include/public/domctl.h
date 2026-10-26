@@ -1322,10 +1322,36 @@ DEFINE_XEN_GUEST_HANDLE(xen_domctl_memory_claim_t);
  *                requested
  *  EOPNOTSUPP  - claims requested while LLC coloring is enabled
  */
+
+/*
+ * XEN_DOMCTL_get_memory_claims
+ *
+ * Read the outstanding memory claims of a domain: The host-wide claim, if
+ * any, followed by the node claims in ascending node order.
+ *
+ * nr_entries is the capacity of the claim_set array on input.  On output, it
+ * is the number of entries of the domain, which is 0 for a domain without
+ * claims.  If that exceeds the capacity, no entries are written and ERANGE
+ * is returned, so a capacity of 0 queries the number of entries.  A capacity
+ * above the maximum number of nodes plus one for the host-wide entry is
+ * clamped.
+ *
+ * XEN_DOMCTL_get_memory_claims fails with:
+ *  EINVAL      - pad not zero
+ *  ENOMEM      - allocation failure
+ *  ERANGE      - the capacity is below the number of entries
+ *  EFAULT      - the claim array or domctl cannot be copied to the guest
+ */
+
+/* The argument of XEN_DOMCTL_set_memory_claims and _get_memory_claims. */
 struct xen_domctl_memory_claims {
-    /* IN: array of claim entries. */
+    /* IN for set: claims to install.  OUT for get: claims of the domain. */
     XEN_GUEST_HANDLE_64(xen_domctl_memory_claim_t) claim_set;
-    uint32_t nr_entries;    /* IN: number of array entries. */
+    /*
+     * IN for set: number of entries.
+     * For get, IN: capacity of claim_set, OUT: number of entries needed.
+     */
+    uint32_t nr_entries;
     uint32_t pad;           /* Must be zero. */
 };
 
@@ -1422,6 +1448,7 @@ struct xen_domctl {
 #define XEN_DOMCTL_set_llc_colors                89
 #define XEN_DOMCTL_get_domain_state              90 /* stable interface */
 #define XEN_DOMCTL_set_memory_claims             91
+#define XEN_DOMCTL_get_memory_claims             92
 #define XEN_DOMCTL_gdbsx_guestmemio            1000
 #define XEN_DOMCTL_gdbsx_pausevcpu             1001
 #define XEN_DOMCTL_gdbsx_unpausevcpu           1002
