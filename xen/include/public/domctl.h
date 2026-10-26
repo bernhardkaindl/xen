@@ -1284,12 +1284,50 @@ struct xen_domctl_memory_claim {
     uint32_t target;        /* NUMA node or special target constant. */
     uint32_t pad;           /* Must be zero. */
 };
+typedef struct xen_domctl_memory_claim xen_domctl_memory_claim_t;
+DEFINE_XEN_GUEST_HANDLE(xen_domctl_memory_claim_t);
 
 /*
  * Host-wide claim, not tied to a NUMA node.  Other targets with bit 31 set
  * are reserved for future special targets.
  */
 #define XEN_DOMCTL_CLAIM_MEMORY_HOST 0x80000000U
+
+/*
+ * XEN_DOMCTL_set_memory_claims
+ *
+ * Atomically set a domain's outstanding memory claims.
+ *
+ * Each entry reserves pages either on one online NUMA node or host-wide.
+ * Targets must be unique, and each entry must claim at least one page.
+ * New claims can only be set while the domain has no outstanding claims.
+ * An empty array releases all outstanding claims.
+ *
+ * The total of all entries plus the domain's allocated pages must not exceed
+ * the maximum page count of the domain.  Claims can only be installed for
+ * the build of a domain, while it is paused.
+ *
+ * XEN_DOMCTL_set_memory_claims fails without changing the claims with:
+ *  ENOMEM      - allocation failure or not enough unclaimed memory,
+ *                in total or on a node
+ *  EINVAL      - pad not zero, duplicate or reserved target, zero pages in
+ *                an entry, claims plus allocated pages above the maximum of
+ *                the domain, or the domain has outstanding claims
+ *  ENOENT      - an entry targets a node that does not exist or is offline
+ *  E2BIG       - nr_entries is above the maximum number of nodes plus one
+ *                for the host-wide entry
+ *  EFAULT      - the claim array cannot be read from the guest
+ *  EBUSY       - claims requested for a domain that is not paused
+ *  ESRCH       - the domain does not exist, or is dying and claims are
+ *                requested
+ *  EOPNOTSUPP  - claims requested while LLC coloring is enabled
+ */
+struct xen_domctl_memory_claims {
+    /* IN: array of claim entries. */
+    XEN_GUEST_HANDLE_64(xen_domctl_memory_claim_t) claim_set;
+    uint32_t nr_entries;    /* IN: number of array entries. */
+    uint32_t pad;           /* Must be zero. */
+};
 
 struct xen_domctl {
 /* Stable domctl ops: interface_version is required to be 0.  */
@@ -1383,6 +1421,7 @@ struct xen_domctl {
 #define XEN_DOMCTL_gsi_permission                88
 #define XEN_DOMCTL_set_llc_colors                89
 #define XEN_DOMCTL_get_domain_state              90 /* stable interface */
+#define XEN_DOMCTL_set_memory_claims             91
 #define XEN_DOMCTL_gdbsx_guestmemio            1000
 #define XEN_DOMCTL_gdbsx_pausevcpu             1001
 #define XEN_DOMCTL_gdbsx_unpausevcpu           1002
@@ -1451,6 +1490,7 @@ struct xen_domctl {
 #endif
         struct xen_domctl_set_llc_colors    set_llc_colors;
         struct xen_domctl_get_domain_state  get_domain_state;
+        struct xen_domctl_memory_claims     memory_claims;
         uint8_t                             pad[128];
     } u;
 };
