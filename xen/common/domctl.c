@@ -51,6 +51,47 @@ static int xenctl_bitmap_to_nodemask(nodemask_t *nodemask,
                                    MAX_NUMNODES);
 }
 
+static int set_memory_claims(struct domain *d,
+                             const struct xen_domctl_memory_claims *op)
+{
+    struct claim_request request = { .nr_entries = op->nr_claims };
+    int ret;
+
+    if ( op->pad )
+        return -EINVAL;
+
+    /* Releasing is harmless in any domain state. */
+    if ( !op->nr_claims )
+        return domain_set_outstanding_pages(d, 0);
+
+    /* The LLC coloring allocator ignores claims. */
+    if ( llc_coloring_enabled )
+        return -EOPNOTSUPP;
+
+    if ( d->is_dying )
+        return -ESRCH;
+
+    /* Allow one claim for every node plus one host-wide claim. */
+    if ( op->nr_claims > MAX_NUMNODES + 1U )
+        return -E2BIG;
+
+    if ( d->creation_finished )
+        return -EEXIST;
+
+    request.entries = xvmalloc_array(struct xen_domctl_memory_claim,
+                                     request.nr_entries);
+    if ( !request.entries )
+        return -ENOMEM;
+
+    if ( copy_from_guest(request.entries, op->claims, request.nr_entries) )
+        ret = -EFAULT;
+    else
+        ret = domain_set_claims(d, &request);
+
+    xvfree(request.entries);
+    return ret;
+}
+
 void getdomaininfo(struct domain *d, struct xen_domctl_getdomaininfo *info)
 {
     struct vcpu *v;
@@ -852,6 +893,10 @@ long do_domctl(XEN_GUEST_HANDLE_PARAM(xen_domctl_t) u_domctl)
         nrspin_unlock(&d->page_alloc_lock);
         break;
     }
+
+    case XEN_DOMCTL_set_memory_claims:
+        ret = set_memory_claims(d, &op->u.memory_claims);
+        break;
 
     case XEN_DOMCTL_setdomainhandle:
         memcpy(d->handle, op->u.setdomainhandle.handle,

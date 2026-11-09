@@ -1279,6 +1279,7 @@ struct xen_domctl_get_domain_state {
     uint64_t unique_id;      /* Unique domain identifier. */
 };
 
+/* XEN_DOMCTL_set_memory_claims */
 /*
  * Special target for a host-wide claim, not associated with a NUMA node.
  * Other values with bit 31 set are reserved for future special targets.
@@ -1291,6 +1292,50 @@ typedef struct xen_domctl_memory_claim {
     uint32_t target;        /* NUMA node or special target constant. */
     uint32_t pad;           /* Must be zero. */
 } xen_domctl_memory_claim_t;
+DEFINE_XEN_GUEST_HANDLE(xen_domctl_memory_claim_t);
+
+/*
+ * XEN_DOMCTL_set_memory_claims
+ *
+ * The purpose of this domctl is to allow a domain builder to reserve
+ * memory on the host and the NUMA nodes where the domain will be placed
+ * before starting to populate the physmap of a new domain.
+ *
+ * The domain builder must serialize claim installation with allocations
+ * for the domain, including completion of any allocation continuation.
+ *
+ * Each claim reserves pages either on one online NUMA node or host-wide.
+ * Targets must be unique, and each claim must be for at least one page.
+ * New claims can only be set while the domain has no outstanding claims
+ * and the creation phase of the domain has not been completed.
+ * An empty array releases all outstanding claims.
+ *
+ * Domain-heap allocations counted towards d->max_pages consume claims:
+ * First the domain's claim on the node of the allocation, then its
+ * host-wide claim, lastly its claims on other nodes, keeping allocated
+ * plus claimed pages within d->max_pages.
+ *
+ * XEN_DOMCTL_set_memory_claims fails without changing the claims with:
+ *  EOPNOTSUPP - claims requested while LLC coloring is enabled
+ *  E2BIG      - nr_claims is above the maximum number of nodes plus one
+ *               for the host-wide claim
+ *  ESRCH      - the domain does not exist, or claims were requested for
+ *               an already dying domain
+ *  EEXIST     - claims requested for a domain whose creation is finished
+ *  EFAULT     - the claims array cannot be read from the guest
+ *  ENOENT     - a request targets a node that does not exist or is offline
+ *  EINVAL     - pad not zero, duplicate or reserved target, claims for
+ *               zero pages, claims plus allocated pages above the maximum
+ *               of the domain, or the domain already has outstanding claims
+ *  ENOMEM     - allocation failure or not enough unclaimed memory,
+ *               in total or on a node
+ */
+struct xen_domctl_memory_claims {
+    /* IN: array of claims. */
+    XEN_GUEST_HANDLE_64(xen_domctl_memory_claim_t) claims;
+    uint32_t nr_claims;     /* IN: number of claims. */
+    uint32_t pad;           /* IN: Must be zero. */
+};
 
 struct xen_domctl {
 /* Stable domctl ops: interface_version is required to be 0.  */
@@ -1384,6 +1429,7 @@ struct xen_domctl {
 #define XEN_DOMCTL_gsi_permission                88
 #define XEN_DOMCTL_set_llc_colors                89
 #define XEN_DOMCTL_get_domain_state              90 /* stable interface */
+#define XEN_DOMCTL_set_memory_claims             91
 #define XEN_DOMCTL_gdbsx_guestmemio            1000
 #define XEN_DOMCTL_gdbsx_pausevcpu             1001
 #define XEN_DOMCTL_gdbsx_unpausevcpu           1002
@@ -1452,6 +1498,7 @@ struct xen_domctl {
 #endif
         struct xen_domctl_set_llc_colors    set_llc_colors;
         struct xen_domctl_get_domain_state  get_domain_state;
+        struct xen_domctl_memory_claims     memory_claims;
         uint8_t                             pad[128];
     } u;
 };
