@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
      afterwards.
 
 ### Added
+ - Support for per-node NUMA memory claims, so toolstacks can reserve memory
+   on the NUMA nodes a domain will run on:
+   - XEN_DOMCTL_set_memory_claims/xc_domain_set_memory_claims() atomically
+     sets a domain's host-wide claim and per-node claims.
 
 ### Removed
  - On Arm:
