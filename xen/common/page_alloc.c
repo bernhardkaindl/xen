@@ -522,6 +522,75 @@ unsigned long domain_adjust_tot_pages(struct domain *d, long pages)
     return d->tot_pages;
 }
 
+/* Redeem up to @pages of the claim on @node; return the pages redeemed. */
+static unsigned long domain_redeem_node_claim(struct domain *d,
+                                              unsigned int node,
+                                              unsigned long pages)
+{
+    ASSERT(spin_is_locked(&heap_lock));
+
+    if ( !d->node_claims )
+        return 0;
+    if ( pages > d->claims[node] )
+        pages = d->claims[node];
+
+    ASSERT(node_claimed_pages[node] >= pages);
+    ASSERT(d->node_claims >= pages);
+    ASSERT(d->outstanding_pages >= pages);
+    ASSERT(outstanding_claims >= pages);
+
+    node_claimed_pages[node] -= pages;
+    d->claims[node] -= pages;
+    d->node_claims -= pages;
+    d->outstanding_pages -= pages;
+    outstanding_claims -= pages;
+
+    return pages;
+}
+
+/* Redeem up to @pages of the host-wide claim; return the pages redeemed. */
+static unsigned long domain_redeem_host_claim(struct domain *d,
+                                              unsigned long pages)
+{
+    unsigned long host_claim;
+
+    ASSERT(spin_is_locked(&heap_lock));
+    ASSERT(d->outstanding_pages >= d->node_claims);
+
+    host_claim = d->outstanding_pages - d->node_claims;
+    if ( pages > host_claim )
+        pages = host_claim;
+
+    ASSERT(d->outstanding_pages >= pages);
+    ASSERT(outstanding_claims >= pages);
+
+    d->outstanding_pages -= pages;
+    outstanding_claims -= pages;
+
+    return pages;
+}
+
+/* Redeem exactly @pages from the claims on nodes other than @node. */
+static void domain_redeem_other_node_claims(struct domain *d,
+                                            unsigned int node,
+                                            unsigned long pages)
+{
+    unsigned int other;
+
+    ASSERT(spin_is_locked(&heap_lock));
+
+    for_each_online_node ( other )
+    {
+        if ( !pages )
+            break;
+
+        if ( other != node )
+            pages -= domain_redeem_node_claim(d, other, pages);
+    }
+
+    ASSERT(!pages);
+}
+
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 {
     int ret = -ENOMEM;
@@ -1113,8 +1182,16 @@ static struct page_info *alloc_heap_pages(
         unsigned long outstanding = min(d->outstanding_pages + 0UL, request);
 
         BUG_ON(outstanding > outstanding_claims);
-        outstanding_claims -= outstanding;
-        d->outstanding_pages -= outstanding;
+
+        /* Redeem the allocation from the domain's claim on the node first. */
+        outstanding -= domain_redeem_node_claim(d, node, outstanding);
+        /*
+         * To keep the sum of assigned pages and claims within the domain's
+         * limit, redeem the remainder from host-wide claims of the domain,
+         * and if needed, from other per-node claim pools of the domain.
+         */
+        outstanding -= domain_redeem_host_claim(d, outstanding);
+        domain_redeem_other_node_claims(d, node, outstanding);
     }
 
     check_low_mem_virq();
