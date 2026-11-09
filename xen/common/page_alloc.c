@@ -490,6 +490,9 @@ static DEFINE_SPINLOCK(heap_lock);
 /* Total outstanding claims by all domains */
 static unsigned long outstanding_claims;
 
+/* Outstanding claims of all domains on each NUMA node. */
+static unsigned long node_claimed_pages[MAX_NUMNODES];
+
 static unsigned long avail_heap_pages(
     unsigned int zone_lo, unsigned int zone_hi, unsigned int node)
 {
@@ -862,6 +865,7 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
                                         unsigned int order, unsigned int memflags,
                                         const struct domain *d)
 {
+    unsigned long request = 1UL << order;
     nodeid_t first, node = MEMF_get_node(memflags), req_node = node;
     nodemask_t nodemask = node_online_map;
     unsigned int j, zone, nodemask_retry = 0;
@@ -906,10 +910,23 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
      */
     for ( ; ; )
     {
+        /* Offlining can reduce free pages below outstanding claims. */
+        unsigned long available =
+            node_avail_pages[node] > node_claimed_pages[node]
+            ? node_avail_pages[node] - node_claimed_pages[node]
+            : 0;
+
+        /* Ref-counted allocations may use the domain's per-node claim. */
+        if ( d && !(memflags & MEMF_no_refcount) && d->claims )
+            available += d->claims[node];
+
+        if ( available < request )
+            goto next_node;
+
         zone = zone_hi;
         do {
-            /* Check if target node can support the allocation. */
-            if ( !avail[node] || (avail[node][zone] < (1UL << order)) )
+            /* Skip zones on the node that can't support the allocation. */
+            if ( !avail[node] || (avail[node][zone] < request) )
                 continue;
 
             /* Find smallest order which can satisfy the request. */
@@ -935,6 +952,7 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
             }
         } while ( zone-- > zone_lo ); /* careful: unsigned zone may wrap */
 
+ next_node:
         if ( (memflags & MEMF_exact_node) && req_node != NUMA_NO_NODE )
             return NULL;
 
