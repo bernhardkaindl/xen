@@ -2680,6 +2680,17 @@ int xc_domain_set_memory_claims(xc_interface *xch, uint32_t domid,
                                 const xen_domctl_memory_claim_t *claims,
                                 uint32_t nr_claims);
 
+/*
+ * Get the memory claims of a domain.
+ * *nr_claims is the capacity of claims on input and the number of claims on
+ * output.  If the capacity is too small, fail with errno ENOBUFS without
+ * modifying claims.  Pass *nr_claims == 0 and claims == NULL to query the
+ * number of claims.
+ */
+int xc_domain_get_memory_claims(xc_interface *xch, uint32_t domid,
+                                xen_domctl_memory_claim_t *claims,
+                                uint32_t *nr_claims);
+
 #if defined(__arm__) || defined(__aarch64__)
 int xc_dt_overlay(xc_interface *xch, void *overlay_fdt,
                   uint32_t overlay_fdt_size, uint8_t overlay_op);
