@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
    on the NUMA nodes a domain will run on:
    - XEN_DOMCTL_set_memory_claims/xc_domain_set_memory_claims() atomically
      sets a domain's host-wide claim and per-node claims.
+   - XEN_DOMCTL_get_memory_claims/xc_domain_get_memory_claims() reads them.
 
 ### Removed
  - On Arm:
