@@ -1,0 +1,3380 @@
+From mboxrd@z Thu Jan  1 00:00:00 1970
+Return-Path: <xen-devel-bounces@lists.xenproject.org>
+X-Spam-Checker-Version: SpamAssassin 3.4.0 (2014-02-07) on
+	aws-us-west-2-korg-lkml-1.web.codeaurora.org
+Received: from lists.xenproject.org (lists.xenproject.org [192.237.175.120])
+	(using TLSv1.2 with cipher ECDHE-RSA-AES256-GCM-SHA384 (256/256 bits))
+	(No client certificate requested)
+	by smtp.lore.kernel.org (Postfix) with ESMTPS id E1216CD342F
+	for <xen-devel@archiver.kernel.org>; Fri,  8 May 2026 20:29:26 +0000 (UTC)
+Received: from list by lists.xenproject.org with outflank-mailman.1304093.1577246 (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wLRoj-0000UX-Ev; Fri, 08 May 2026 20:29:01 +0000
+X-Outflank-Mailman: Message body and most headers restored to incoming version
+Received: by outflank-mailman (output) from mailman id 1304093.1577246; Fri, 08 May 2026 20:29:01 +0000
+Received: from localhost ([127.0.0.1] helo=lists.xenproject.org)
+	by lists.xenproject.org with esmtp (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wLRoj-0000UQ-9u; Fri, 08 May 2026 20:29:01 +0000
+Received: by outflank-mailman (input) for mailman id 1304093;
+ Fri, 08 May 2026 20:29:00 +0000
+Received: from mx.expurgate.net ([195.190.135.10])
+ by lists.xenproject.org with esmtp (Exim 4.92)
+ (envelope-from <bernhard.kaindl@citrix.com>) id 1wLRoi-0000UK-Ct
+ for xen-devel@lists.xenproject.org; Fri, 08 May 2026 20:29:00 +0000
+Received: from mx.expurgate.net (helo=localhost) by mx.expurgate.net with esmtp
+ id 1wLRog-00Ap9l-Ao
+ for xen-devel@lists.xenproject.org; Fri, 08 May 2026 22:28:58 +0200
+Received: from [10.42.69.3] (helo=localhost)
+ by localhost with ESMTP (eXpurgate MTA 0.9.1)
+ (envelope-from <bernhard.kaindl@citrix.com>)
+ id 69fe475c-e002-0a2a0a5209dd-0a2a4503ec68-26
+ for <xen-devel@lists.xenproject.org>; Fri, 08 May 2026 22:28:58 +0200
+Received: from [160.101.131.9] (helo=na1pdmzitismtp02.tibco.com)
+ by tlsNG-33051d.mxtls.expurgate.net with ESMTPS (eXpurgate 4.56.1)
+ (envelope-from <bernhard.kaindl@citrix.com>)
+ id 69fe4789-672d-0a2a45030019-a0658309b772-3
+ for <xen-devel@lists.xenproject.org>; Fri, 08 May 2026 22:28:57 +0200
+Received: from debian.eng.citrite.net (unknown [10.113.40.46])
+ by na1pdmzitismtp02.tibco.com (Postfix) with ESMTP id 4A4448245FD5;
+ Fri,  8 May 2026 16:27:51 -0400 (EDT)
+X-BeenThere: xen-devel@lists.xenproject.org
+List-Id: Xen developer discussion <xen-devel.lists.xenproject.org>
+List-Unsubscribe: <https://lists.xenproject.org/mailman/options/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=unsubscribe>
+List-Post: <mailto:xen-devel@lists.xenproject.org>
+List-Help: <mailto:xen-devel-request@lists.xenproject.org?subject=help>
+List-Subscribe: <https://lists.xenproject.org/mailman/listinfo/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=subscribe>
+Errors-To: xen-devel-bounces@lists.xenproject.org
+Precedence: list
+Sender: "Xen-devel" <xen-devel-bounces@lists.xenproject.org>
+Authentication-Results: eu.smtp.expurgate.cloud; none
+From: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+To: xen-devel@lists.xenproject.org
+Cc: Bernhard Kaindl <bernhard.kaindl@citrix.com>,
+	Andrew Cooper <andrew.cooper3@citrix.com>,
+	Anthony PERARD <anthony.perard@vates.tech>,
+	Michal Orzel <michal.orzel@amd.com>,
+	Jan Beulich <jbeulich@suse.com>,
+	Julien Grall <julien@xen.org>,
+	=?UTF-8?q?Roger=20Pau=20Monn=C3=A9?= <roger.pau@citrix.com>,
+	Stefano Stabellini <sstabellini@kernel.org>,
+	Juergen Gross <jgross@suse.com>,
+	"Daniel P. Smith" <dpsmith@apertussolutions.com>,
+	Christian Lindig <christian.lindig@citrix.com>,
+	David Scott <dave@recoil.org>
+Subject: [PATCH v7 0/3] xen/mm: Introduce NUMA-aware memory claim sets
+Date: Fri,  8 May 2026 21:27:56 +0100
+Message-Id: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+X-Mailer: git-send-email 2.39.5
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+X-purgate-ID: tlsNG-33051d/1778272138-39D7B938-8ACBBA69/0/0
+X-purgate-type: clean
+X-purgate-size: 4355
+
+Xen's existing memory claim interface can account only for a host-wide
+amount of memory for a domain. That is not enough for toolstacks that need
+to claim memory from particular NUMA nodes before building the domain.
+
+This series extends Xen's memory claim design to support claim sets with
+NUMA-node-specific entries. Roger Pau Monné summarized the core design
+requirement as:
+
+   Ideally, we would need to introduce a new hypercall that allows
+   making claims from multiple nodes in a single locked region, as to
+   ensure success or failure in an atomic way.
+
+A claim set can contain multiple node-specific claims and a host-wide
+claim for memory that may come from any NUMA node. The new domctl
+installs the full claim set atomically, and the allocator is updated
+so that claim checks and claim consumption are NUMA-node aware.
+
+The components are:
+
+1. installing multi-node claim sets atomically,
+2. protecting claimed pages from other claim requests and allocations, and
+3. redeeming claims in a NUMA-aware manner when satisfying allocations
+   for domains with claims.
+
+Legacy XENMEM_claim_pages behaviour is preserved; the legacy interface
+is deprecated and superseded by XEN_DOMCTL_claim_memory.
+
+This update addresses v6 review comments, refactors claim redemption,
+and adds a GET operation for inspecting a domain's claim set.
+
+Only one preparatory patch remains in this version, followed by the main
+feature and finally the OCaml bindings.
+
+The updated design document for this series was submitted on May 5:
+https://lists.xen.org/archives/html/xen-devel/2026-05/msg00163.html
+Rendered version: https://xen.kaindl.dev/claims-v7-design/designs/claims/
+
+The core operational principles have been validated in the following ways:
+
+1. A comprehensive functional system test suite running in Dom0,
+   which will follow this submission.
+
+2. A native integration test environment for the Xen page allocator,
+   providing a configurable synthetic Xen heap for each test case,
+   which will follow this submission as well.
+
+3. A set of high-level functional integration tests and performance
+   tests, executed as part of end-to-end product deployment validation.
+
+4. Validation in a customer's application performance lab to confirm
+   performance expectations. This was done on predecessor code sharing
+   the same design; that earlier code only supported single-node claims.
+
+Best regards,
+Bernhard
+
+Changes since v6:
+- Incorporated v6 review feedback.
+- Restored claim invariants as needed after offlining pages.
+- Addressed Jan's point about the ambiguity of the term "global":
+   See https://lists.xen.org/archives/html/xen-devel/2026-05/msg00026.html
+- Use "host-wide claims", with "host_claims" and "node_claims" as shorthands.
+
+In addition, I adjusted helper names to make the domain scope explicit
+and to keep the "release", "set", and "get" operations named consistently:
+
+  * deduct_global_claims()         -> domain_release_host_claims()
+  * deduct_node_claims()           -> domain_release_node_claims()
+  * domain_set_outstanding_pages() -> domain_set_claim_entries()
+  * domain_get_claim_entries() was added.
+
+- The new domain_set_claim_entries() helper also handles the legacy
+  XENMEM_claim_pages interface for backward compatibility, replacing
+  domain_set_outstanding_pages().
+
+Bernhard Kaindl (3):
+  xen/mm: Introduce per-node free page counter
+  xen/mm: Introduce NUMA-aware memory claim sets
+  tools/ocaml: Add OCaml binding for NUMA claim sets
+
+ tools/include/xenctrl.h             |  11 +
+ tools/libs/ctrl/xc_domain.c         |  28 ++
+ tools/ocaml/libs/xc/xenctrl.ml      |  10 +
+ tools/ocaml/libs/xc/xenctrl.mli     |  10 +
+ tools/ocaml/libs/xc/xenctrl_stubs.c |  50 ++++
+ xen/common/domain.c                 |   5 +-
+ xen/common/domctl.c                 |  57 ++++
+ xen/common/memory.c                 |   5 +-
+ xen/common/page_alloc.c             | 416 +++++++++++++++++++++++-----
+ xen/include/public/domctl.h         |  38 +++
+ xen/include/public/memory.h         |   2 +
+ xen/include/xen/mm.h                |   6 +-
+ xen/include/xen/sched.h             |   4 +
+ xen/xsm/flask/hooks.c               |   1 +
+ xen/xsm/flask/policy/access_vectors |   1 +
+ 15 files changed, 570 insertions(+), 74 deletions(-)
+
+-- 
+2.39.5
+
+
+
+From mboxrd@z Thu Jan  1 00:00:00 1970
+Return-Path: <xen-devel-bounces@lists.xenproject.org>
+X-Spam-Checker-Version: SpamAssassin 3.4.0 (2014-02-07) on
+	aws-us-west-2-korg-lkml-1.web.codeaurora.org
+Received: from lists.xenproject.org (lists.xenproject.org [192.237.175.120])
+	(using TLSv1.2 with cipher ECDHE-RSA-AES256-GCM-SHA384 (256/256 bits))
+	(No client certificate requested)
+	by smtp.lore.kernel.org (Postfix) with ESMTPS id 3C777CD3445
+	for <xen-devel@archiver.kernel.org>; Fri,  8 May 2026 20:31:38 +0000 (UTC)
+Received: from list by lists.xenproject.org with outflank-mailman.1304115.1577253 (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wLRr6-00020R-Qx; Fri, 08 May 2026 20:31:28 +0000
+X-Outflank-Mailman: Message body and most headers restored to incoming version
+Received: by outflank-mailman (output) from mailman id 1304115.1577253; Fri, 08 May 2026 20:31:28 +0000
+Received: from localhost ([127.0.0.1] helo=lists.xenproject.org)
+	by lists.xenproject.org with esmtp (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wLRr6-00020K-OR; Fri, 08 May 2026 20:31:28 +0000
+Received: by outflank-mailman (input) for mailman id 1304115;
+ Fri, 08 May 2026 20:31:26 +0000
+Received: from mx.expurgate.net ([195.190.135.10])
+ by lists.xenproject.org with esmtp (Exim 4.92)
+ (envelope-from <bernhard.kaindl@citrix.com>) id 1wLRr4-00020C-NW
+ for xen-devel@lists.xenproject.org; Fri, 08 May 2026 20:31:26 +0000
+Received: from mx.expurgate.net (helo=localhost) by mx.expurgate.net with esmtp
+ id 1wLRr4-0008Mq-4d
+ for xen-devel@lists.xenproject.org; Fri, 08 May 2026 22:31:26 +0200
+Received: from [10.42.69.10] (helo=localhost)
+ by localhost with ESMTP (eXpurgate MTA 0.9.1)
+ (envelope-from <bernhard.kaindl@citrix.com>)
+ id 69fe4817-5cb7-0a2a0a5109dd-0a2a450adec8-8
+ for <xen-devel@lists.xenproject.org>; Fri, 08 May 2026 22:31:26 +0200
+Received: from [160.101.131.8] (helo=na1pdmzitismtp01.tibco.com)
+ by tlsNG-4011c0.mxtls.expurgate.net with ESMTPS (eXpurgate 4.56.1)
+ (envelope-from <bernhard.kaindl@citrix.com>)
+ id 69fe481d-56b3-0a2a450a0019-a0658308cc16-3
+ for <xen-devel@lists.xenproject.org>; Fri, 08 May 2026 22:31:25 +0200
+Received: from debian.eng.citrite.net (unknown [10.113.40.46])
+ by na1pdmzitismtp01.tibco.com (Postfix) with ESMTP id 620124373E19;
+ Fri,  8 May 2026 16:30:30 -0400 (EDT)
+X-BeenThere: xen-devel@lists.xenproject.org
+List-Id: Xen developer discussion <xen-devel.lists.xenproject.org>
+List-Unsubscribe: <https://lists.xenproject.org/mailman/options/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=unsubscribe>
+List-Post: <mailto:xen-devel@lists.xenproject.org>
+List-Help: <mailto:xen-devel-request@lists.xenproject.org?subject=help>
+List-Subscribe: <https://lists.xenproject.org/mailman/listinfo/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=subscribe>
+Errors-To: xen-devel-bounces@lists.xenproject.org
+Precedence: list
+Sender: "Xen-devel" <xen-devel-bounces@lists.xenproject.org>
+Authentication-Results: eu.smtp.expurgate.cloud; none
+From: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+To: xen-devel@lists.xenproject.org
+Cc: Bernhard Kaindl <bernhard.kaindl@citrix.com>,
+	Andrew Cooper <andrew.cooper3@citrix.com>,
+	Anthony PERARD <anthony.perard@vates.tech>,
+	Michal Orzel <michal.orzel@amd.com>,
+	Jan Beulich <jbeulich@suse.com>,
+	Julien Grall <julien@xen.org>,
+	=?UTF-8?q?Roger=20Pau=20Monn=C3=A9?= <roger.pau@citrix.com>,
+	Stefano Stabellini <sstabellini@kernel.org>,
+	Alejandro Vallejo <alejandro.vallejo@cloud.com>
+Subject: [PATCH v7 1/3] xen/mm: Introduce per-node free page counter
+Date: Fri,  8 May 2026 21:27:57 +0100
+Message-Id: <a0b83b0781319009c3862389469dc59db59e0b29.1778272036.git.bernhard.kaindl@citrix.com>
+X-Mailer: git-send-email 2.39.5
+In-Reply-To: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+References: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+MIME-Version: 1.0
+Content-Transfer-Encoding: 8bit
+X-purgate-ID: tlsNG-4011c0/1778272286-7176D8B7-6DC2C879/0/0
+X-purgate-type: clean
+X-purgate-size: 3964
+
+From: Alejandro Vallejo <alejandro.vallejo@cloud.com>
+
+Add node_avail_pages[], updated under heap_lock in sync with
+avail[node][zone] to cache the per-node sum of free pages.
+
+Use it in avail_node_heap_pages() to avoid summing all zones on each
+call. Guard it with nodeid < MAX_NUMNODES and node_online(nodeid).
+
+Signed-off-by: Alejandro Vallejo <alejandro.vallejo@cloud.com>
+Signed-off-by: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+---
+This patch was originally sent by Alejandro Vallejo:
+https://lists.xenproject.org/archives/html/xen-devel/2025-03/msg01130.html
+
+I use node_avail_pages[] in avail_node_heap_pages() as an optimisation.
+
+Verification of the changes:
+
+1. node_avail_pages[node] is updated whenever avail[node][zone] changes,
+   so the two remain in sync.
+
+2. avail_node_heap_pages() previously summed all zones of a node and now
+   returns node_avail_pages[node], so the same free buddy pages are
+   counted.
+
+3. avail_node_heap_pages() returns 0 for offline nodes and for nodes
+   >= MAX_NUMNODES as before.
+
+4. avail_node_heap_pages(-1) returned the sum from all nodes, equal
+   to total_avail_pages, but this is not used by current callers.
+   avail_heap_pages(z, z, -1) is used by other callers for that instead.
+   To avoid dead code, a check for -1 to implement this is not added.
+
+Update locations:
+
+- free_heap_pages() increments node_avail_pages[node] alongside
+  avail[node][zone] when pages are freed, including during heap
+  initialisation.
+
+- alloc_heap_pages() decrements node_avail_pages[node] alongside
+  avail[node][zone] when pages are allocated.
+
+- reserve_offlined_page() decrements node_avail_pages[node] alongside
+  avail[node][zone] when pages are offlined.
+
+Colored pages do not go through the buddy allocator.
+Since they do not update avail[node][zone], they are
+not reflected in node_avail_pages[node] either.
+
+N.B. Current callers already iterate over online nodes only.
+
+Changes since v6:
+- Preserved the 0 return for offline nodes and nodes >= MAX_NUMNODES.
+---
+ xen/common/page_alloc.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/xen/common/page_alloc.c b/xen/common/page_alloc.c
+index 2c4ff2c34c70..7e17bafa1e45 100644
+--- a/xen/common/page_alloc.c
++++ b/xen/common/page_alloc.c
+@@ -485,6 +485,7 @@ static unsigned long node_need_scrub[MAX_NUMNODES];
+ 
+ static unsigned long *avail[MAX_NUMNODES];
+ static unsigned long total_avail_pages;
++static unsigned long node_avail_pages[MAX_NUMNODES];
+ 
+ static DEFINE_SPINLOCK(heap_lock);
+ /* Total outstanding claims by all domains */
+@@ -1050,6 +1051,8 @@ static struct page_info *alloc_heap_pages(
+     avail[node][zone] -= request;
+     ASSERT(total_avail_pages >= request);
+     total_avail_pages -= request;
++    ASSERT(node_avail_pages[node] >= request);
++    node_avail_pages[node] -= request;
+ 
+     if ( d && d->outstanding_pages && !(memflags & MEMF_no_refcount) )
+     {
+@@ -1243,6 +1246,8 @@ static int reserve_offlined_page(struct page_info *head)
+         avail[node][zone]--;
+         ASSERT(total_avail_pages > 0);
+         total_avail_pages--;
++        ASSERT(node_avail_pages[node] > 0);
++        node_avail_pages[node]--;
+ 
+         page_list_add_tail(cur_head,
+                            test_bit(_PGC_broken, &cur_head->count_info) ?
+@@ -1566,6 +1571,7 @@ static void free_heap_pages(
+ 
+     avail[node][zone] += 1 << order;
+     total_avail_pages += 1 << order;
++    node_avail_pages[node] += 1 << order;
+     if ( need_scrub )
+     {
+         node_need_scrub[node] += 1 << order;
+@@ -2831,7 +2837,9 @@ unsigned long avail_domheap_pages_region(
+ 
+ unsigned long avail_node_heap_pages(unsigned int nodeid)
+ {
+-    return avail_heap_pages(MEMZONE_XEN, NR_ZONES -1, nodeid);
++    if ( nodeid < MAX_NUMNODES && node_online(nodeid) )
++        return node_avail_pages[nodeid];
++    return 0;
+ }
+ 
+ 
+-- 
+2.39.5
+
+
+
+From mboxrd@z Thu Jan  1 00:00:00 1970
+Return-Path: <xen-devel-bounces@lists.xenproject.org>
+X-Spam-Checker-Version: SpamAssassin 3.4.0 (2014-02-07) on
+	aws-us-west-2-korg-lkml-1.web.codeaurora.org
+Received: from lists.xenproject.org (lists.xenproject.org [192.237.175.120])
+	(using TLSv1.2 with cipher ECDHE-RSA-AES256-GCM-SHA384 (256/256 bits))
+	(No client certificate requested)
+	by smtp.lore.kernel.org (Postfix) with ESMTPS id 2D67BCD3445
+	for <xen-devel@archiver.kernel.org>; Fri,  8 May 2026 20:37:17 +0000 (UTC)
+Received: from list by lists.xenproject.org with outflank-mailman.1304146.1577263 (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wLRwV-0002cx-DG; Fri, 08 May 2026 20:37:03 +0000
+X-Outflank-Mailman: Message body and most headers restored to incoming version
+Received: by outflank-mailman (output) from mailman id 1304146.1577263; Fri, 08 May 2026 20:37:03 +0000
+Received: from localhost ([127.0.0.1] helo=lists.xenproject.org)
+	by lists.xenproject.org with esmtp (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wLRwV-0002cq-A7; Fri, 08 May 2026 20:37:03 +0000
+Received: by outflank-mailman (input) for mailman id 1304146;
+ Fri, 08 May 2026 20:37:01 +0000
+Received: from mx.expurgate.net ([195.190.135.10])
+ by lists.xenproject.org with esmtp (Exim 4.92)
+ (envelope-from <bernhard.kaindl@citrix.com>) id 1wLRwT-0002ck-4h
+ for xen-devel@lists.xenproject.org; Fri, 08 May 2026 20:37:01 +0000
+Received: from mx.expurgate.net (helo=localhost) by mx.expurgate.net with esmtp
+ id 1wLRwS-00Aq1l-EX
+ for xen-devel@lists.xenproject.org; Fri, 08 May 2026 22:37:00 +0200
+Received: from [10.42.69.6] (helo=localhost)
+ by localhost with ESMTP (eXpurgate MTA 0.9.1)
+ (envelope-from <bernhard.kaindl@citrix.com>)
+ id 69fe4906-2eae-0a2a0a5409dd-0a2a4506dc28-46
+ for <xen-devel@lists.xenproject.org>; Fri, 08 May 2026 22:37:00 +0200
+Received: from [160.101.131.9] (helo=na1pdmzitismtp02.tibco.com)
+ by tlsNG-16d1c6.mxtls.expurgate.net with ESMTPS (eXpurgate 4.56.1)
+ (envelope-from <bernhard.kaindl@citrix.com>)
+ id 69fe496b-7371-0a2a45060019-a0658309d4c2-3
+ for <xen-devel@lists.xenproject.org>; Fri, 08 May 2026 22:37:00 +0200
+Received: from debian.eng.citrite.net (unknown [10.113.40.46])
+ by na1pdmzitismtp02.tibco.com (Postfix) with ESMTP id 972C78245F8E;
+ Fri,  8 May 2026 16:35:53 -0400 (EDT)
+X-BeenThere: xen-devel@lists.xenproject.org
+List-Id: Xen developer discussion <xen-devel.lists.xenproject.org>
+List-Unsubscribe: <https://lists.xenproject.org/mailman/options/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=unsubscribe>
+List-Post: <mailto:xen-devel@lists.xenproject.org>
+List-Help: <mailto:xen-devel-request@lists.xenproject.org?subject=help>
+List-Subscribe: <https://lists.xenproject.org/mailman/listinfo/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=subscribe>
+Errors-To: xen-devel-bounces@lists.xenproject.org
+Precedence: list
+Sender: "Xen-devel" <xen-devel-bounces@lists.xenproject.org>
+Authentication-Results: eu.smtp.expurgate.cloud; none
+From: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+To: xen-devel@lists.xenproject.org
+Cc: Bernhard Kaindl <bernhard.kaindl@citrix.com>,
+	Anthony PERARD <anthony.perard@vates.tech>,
+	Juergen Gross <jgross@suse.com>,
+	Andrew Cooper <andrew.cooper3@citrix.com>,
+	Michal Orzel <michal.orzel@amd.com>,
+	Jan Beulich <jbeulich@suse.com>,
+	Julien Grall <julien@xen.org>,
+	=?UTF-8?q?Roger=20Pau=20Monn=C3=A9?= <roger.pau@citrix.com>,
+	Stefano Stabellini <sstabellini@kernel.org>,
+	"Daniel P. Smith" <dpsmith@apertussolutions.com>
+Subject: [PATCH v7 2/3] xen/mm: Introduce NUMA-aware memory claim sets
+Date: Fri,  8 May 2026 21:27:58 +0100
+Message-Id: <ddcc692d642aaf6dec84dcdb17ebaf2b8c09c7b0.1778272036.git.bernhard.kaindl@citrix.com>
+X-Mailer: git-send-email 2.39.5
+In-Reply-To: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+References: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+X-purgate-ID: tlsNG-16d1c6/1778272620-7F77FD75-8A8972F8/0/0
+X-purgate-type: clean
+X-purgate-size: 31474
+
+This commit extends Xen's memory claim design to support installing claim
+sets spanning multiple NUMA nodes atomically. As Roger Pau Monné suggested:
+
+  Ideally, we would need to introduce a new hypercall that allows
+  making claims from multiple nodes in a single locked region, as to
+  ensure success or failure in an atomic way.
+
+A claim set can contain multiple node-specific claims and a host-wide
+claim for memory that may come from any NUMA node. The new domctl
+installs the full claim set atomically, and the allocator is updated
+so that claim checks and claim consumption follow the new semantics.
+
+This adds:
+
+1. installing multi-node claim sets atomically,
+2. protecting claimed pages from other claim requests and allocations, and
+3. redeeming held claims when satisfying allocations.
+
+Legacy XENMEM_claim_pages behaviour is preserved; the interface is
+deprecated and superseded by XEN_DOMCTL_claim_memory.
+
+Signed-off-by: Roger Pau Monné <roger.pau@citrix.com>
+Signed-off-by: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+
+---
+The v7 design document submitted ahead of this series may help with review.
+It explains the background, design rationale, and implementation details.
+
+Rendered version: https://xen.kaindl.dev/claims-v7-design/designs/claims
+
+Many thanks to everyone who contributed to the earlier work and review:
+especially Roger Pau Monné, Alejandro Vallejo, Jan Beulich, Andrew Cooper,
+Marcus Granado, and Edwin Török.
+
+Thanks,
+Bernhard
+---
+ tools/include/xenctrl.h             |  11 +
+ tools/libs/ctrl/xc_domain.c         |  28 ++
+ xen/common/domain.c                 |   5 +-
+ xen/common/domctl.c                 |  57 ++++
+ xen/common/memory.c                 |   5 +-
+ xen/common/page_alloc.c             | 410 +++++++++++++++++++++++-----
+ xen/include/public/domctl.h         |  38 +++
+ xen/include/public/memory.h         |   2 +
+ xen/include/xen/mm.h                |   6 +-
+ xen/include/xen/sched.h             |   4 +
+ xen/xsm/flask/hooks.c               |   1 +
+ xen/xsm/flask/policy/access_vectors |   1 +
+ 12 files changed, 493 insertions(+), 75 deletions(-)
+
+diff --git a/tools/include/xenctrl.h b/tools/include/xenctrl.h
+index d5dbf69c8968..fffa4d3b9c09 100644
+--- a/tools/include/xenctrl.h
++++ b/tools/include/xenctrl.h
+@@ -2659,6 +2659,17 @@ int xc_domain_set_llc_colors(xc_interface *xch, uint32_t domid,
+                              const uint32_t *llc_colors,
+                              uint32_t num_llc_colors);
+ 
++/*
++ * Set or get memory claims for a domain.
++ *
++ * For XEN_DOMCTL_CLAIM_MEMORY_GET, callers may pass *nr_entries == 0 and
++ * claim_set == NULL to query the number of records needed. In that case the
++ * call fails with ERANGE and updates *nr_entries with the required count.
++ */
++int xc_domain_claim_memory(xc_interface *xch, uint32_t domid, uint32_t mode,
++                           uint32_t *nr_entries,
++                           xen_memory_claim_t *claim_set);
++
+ #if defined(__arm__) || defined(__aarch64__)
+ int xc_dt_overlay(xc_interface *xch, void *overlay_fdt,
+                   uint32_t overlay_fdt_size, uint8_t overlay_op);
+diff --git a/tools/libs/ctrl/xc_domain.c b/tools/libs/ctrl/xc_domain.c
+index 01c0669c8863..f78e085dd700 100644
+--- a/tools/libs/ctrl/xc_domain.c
++++ b/tools/libs/ctrl/xc_domain.c
+@@ -1070,6 +1070,34 @@ int xc_domain_remove_from_physmap(xc_interface *xch,
+     return xc_memory_op(xch, XENMEM_remove_from_physmap, &xrfp, sizeof(xrfp));
+ }
+ 
++/* Set or get memory claims for a domain. */
++int xc_domain_claim_memory(xc_interface *xch, uint32_t domid, uint32_t mode,
++                           uint32_t *nr_entries, xen_memory_claim_t *claim_set)
++{
++    struct xen_domctl domctl = {};
++    DECLARE_HYPERCALL_BOUNCE(claim_set, *nr_entries * sizeof(*claim_set),
++                             XC_HYPERCALL_BUFFER_BOUNCE_BOTH);
++    int ret;
++
++    if ( xc_hypercall_bounce_pre(xch, claim_set) )
++        return -1;
++
++    domctl.cmd = XEN_DOMCTL_claim_memory;
++    domctl.domain = domid;
++    domctl.u.claim_memory.mode = mode;
++    domctl.u.claim_memory.nr_entries = *nr_entries;
++    set_xen_guest_handle(domctl.u.claim_memory.claim_set, claim_set);
++
++    ret = do_domctl(xch, &domctl);
++
++    *nr_entries = domctl.u.claim_memory.nr_entries;
++
++    xc_hypercall_bounce_post(xch, claim_set);
++
++    return ret;
++}
++
++/* XENMEM_claim_pages is deprecated; use xc_domain_claim_memory() instead. */
+ int xc_domain_claim_pages(xc_interface *xch,
+                                uint32_t domid,
+                                unsigned long nr_pages)
+diff --git a/xen/common/domain.c b/xen/common/domain.c
+index bb9e210c2895..8cb4241b0511 100644
+--- a/xen/common/domain.c
++++ b/xen/common/domain.c
+@@ -1319,7 +1319,10 @@ int domain_kill(struct domain *d)
+         rspin_barrier(&d->domain_lock);
+         argo_destroy(d);
+         vnuma_destroy(d->vnuma);
+-        domain_set_outstanding_pages(d, 0);
++        /* Release all outstanding claims of the domain. */
++        domain_set_claim_entries(d, 1, &(xen_memory_claim_t){
++            .target = XEN_DOMCTL_CLAIM_MEMORY_HOST, .pages = 0,
++        });
+         /* fallthrough */
+     case DOMDYING_dying:
+         rc = domain_teardown(d);
+diff --git a/xen/common/domctl.c b/xen/common/domctl.c
+index 93738931c575..391f256f013c 100644
+--- a/xen/common/domctl.c
++++ b/xen/common/domctl.c
+@@ -51,6 +51,57 @@ static int xenctl_bitmap_to_nodemask(nodemask_t *nodemask,
+                                    MAX_NUMNODES);
+ }
+ 
++/* Set or get memory claims for a domain. */
++static int claim_memory(struct domain *d,
++                        struct xen_domctl_claim_memory *uinfo, bool *copyback)
++{
++    xen_memory_claim_t *entries;
++    int rc = -EFAULT;
++
++    /* Reject LLC coloring; alloc_color_heap_page() does not handle claims. */
++    if ( llc_coloring_enabled )
++        return -EOPNOTSUPP;
++
++    switch ( uinfo->mode )
++    {
++    case XEN_DOMCTL_CLAIM_MEMORY_SET:
++        if ( !uinfo->nr_entries )
++            return -EINVAL;
++        if ( uinfo->nr_entries > MAX_NUMNODES + 1 )
++            return -E2BIG;
++        break;
++    case XEN_DOMCTL_CLAIM_MEMORY_GET:
++        if ( uinfo->nr_entries > MAX_NUMNODES + 1 )
++            uinfo->nr_entries = MAX_NUMNODES + 1;
++        break;
++    default:
++        return -EOPNOTSUPP;
++    }
++    if ( d->is_dying )
++        return -ESRCH;
++
++    entries = xmalloc_array(xen_memory_claim_t, uinfo->nr_entries);
++    if ( entries == NULL )
++        return -ENOMEM;
++
++    switch ( uinfo->mode )
++    {
++    case XEN_DOMCTL_CLAIM_MEMORY_SET:
++        if ( !copy_from_guest(entries, uinfo->claim_set, uinfo->nr_entries) )
++            rc = domain_set_claim_entries(d, uinfo->nr_entries, entries);
++        break;
++    case XEN_DOMCTL_CLAIM_MEMORY_GET:
++        rc = domain_get_claim_entries(d, &uinfo->nr_entries, entries);
++        *copyback = true;
++        if ( !rc && copy_to_guest(uinfo->claim_set, entries,
++                                  uinfo->nr_entries) )
++            rc = -EFAULT;
++        break;
++    }
++    xfree(entries);
++    return rc;
++}
++
+ void getdomaininfo(struct domain *d, struct xen_domctl_getdomaininfo *info)
+ {
+     struct vcpu *v;
+@@ -865,6 +916,12 @@ long do_domctl(XEN_GUEST_HANDLE_PARAM(xen_domctl_t) u_domctl)
+             copyback = true;
+         break;
+ 
++    case XEN_DOMCTL_claim_memory:
++        ret = xsm_claim_pages(XSM_PRIV, d);
++        if ( !ret )
++            ret = claim_memory(d, &op->u.claim_memory, &copyback);
++        break;
++
+     default:
+         ret = arch_do_domctl(op, d, u_domctl);
+         break;
+diff --git a/xen/common/memory.c b/xen/common/memory.c
+index 1ad4b51c5b02..d7515da28fe3 100644
+--- a/xen/common/memory.c
++++ b/xen/common/memory.c
+@@ -1805,7 +1805,10 @@ long do_memory_op(unsigned long cmd, XEN_GUEST_HANDLE_PARAM(void) arg)
+             rc = -EINVAL;
+ 
+         if ( !rc )
+-            rc = domain_set_outstanding_pages(d, reservation.nr_extents);
++            rc = domain_set_claim_entries(d, 1, &(xen_memory_claim_t){
++                .target = XEN_DOMCTL_CLAIM_MEMORY_LEGACY,
++                .pages = reservation.nr_extents,
++            });
+ 
+         rcu_unlock_domain(d);
+ 
+diff --git a/xen/common/page_alloc.c b/xen/common/page_alloc.c
+index 7e17bafa1e45..46c01a9fca2a 100644
+--- a/xen/common/page_alloc.c
++++ b/xen/common/page_alloc.c
+@@ -477,6 +477,11 @@ mfn_t __init alloc_boot_pages(unsigned long nr_pfns, unsigned long pfn_align)
+ #define page_to_zone(pg) (is_xen_heap_page(pg) ? MEMZONE_XEN :  \
+                           (flsl(mfn_x(page_to_mfn(pg))) ? : 1))
+ 
++/*
++ * The heap, page, and claim counters below, and all claim counters
++ * in struct domain, are protected by heap_lock. The lock order with
++ * d->page_alloc_lock is d->page_alloc_lock first, then heap_lock.
++ */
+ typedef struct page_list_head heap_by_zone_and_order_t[NR_ZONES][MAX_ORDER+1];
+ static heap_by_zone_and_order_t *_heap[MAX_NUMNODES];
+ #define heap(node, zone, order) ((*_heap[node])[zone][order])
+@@ -491,6 +496,9 @@ static DEFINE_SPINLOCK(heap_lock);
+ /* Total outstanding claims by all domains */
+ static unsigned long outstanding_claims;
+ 
++/* Sum of the outstanding claims of all domains per node */
++static unsigned long claimed_pages[MAX_NUMNODES];
++
+ static unsigned long avail_heap_pages(
+     unsigned int zone_lo, unsigned int zone_hi, unsigned int node)
+ {
+@@ -520,67 +528,6 @@ unsigned long domain_adjust_tot_pages(struct domain *d, long pages)
+     return d->tot_pages;
+ }
+ 
+-int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
+-{
+-    int ret = -ENOMEM;
+-    unsigned long claim, avail_pages;
+-
+-    /*
+-     * Two locks are needed here:
+-     *  - d->page_alloc_lock: protects accesses to d->{tot,max,extra}_pages.
+-     *  - heap_lock: protects accesses to d->outstanding_pages, total_avail_pages
+-     *    and outstanding_claims.
+-     */
+-    nrspin_lock(&d->page_alloc_lock);
+-    spin_lock(&heap_lock);
+-
+-    /* pages==0 means "unset" the claim. */
+-    if ( pages == 0 )
+-    {
+-        outstanding_claims -= d->outstanding_pages;
+-        d->outstanding_pages = 0;
+-        ret = 0;
+-        goto out;
+-    }
+-
+-    /* only one active claim per domain please */
+-    if ( d->outstanding_pages )
+-    {
+-        ret = -EINVAL;
+-        goto out;
+-    }
+-
+-    /* disallow a claim not exceeding domain_tot_pages() or above max_pages */
+-    if ( (pages <= domain_tot_pages(d)) || (pages > d->max_pages) )
+-    {
+-        ret = -EINVAL;
+-        goto out;
+-    }
+-
+-    /* how much memory is available? */
+-    avail_pages = total_avail_pages;
+-
+-    avail_pages -= outstanding_claims;
+-
+-    /*
+-     * Note, if domain has already allocated memory before making a claim
+-     * then the claim must take domain_tot_pages() into account
+-     */
+-    claim = pages - domain_tot_pages(d);
+-    if ( claim > avail_pages )
+-        goto out;
+-
+-    /* yay, claim fits in available memory, stake the claim, success! */
+-    d->outstanding_pages = claim;
+-    outstanding_claims += d->outstanding_pages;
+-    ret = 0;
+-
+-out:
+-    spin_unlock(&heap_lock);
+-    nrspin_unlock(&d->page_alloc_lock);
+-    return ret;
+-}
+-
+ #ifdef CONFIG_SYSCTL
+ void get_outstanding_claims(uint64_t *free_pages, uint64_t *outstanding_pages)
+ {
+@@ -858,6 +805,253 @@ static void check_and_stop_scrub(struct page_info *head)
+     }
+ }
+ 
++/* Release claims from the host-wide claims pool of the domain. */
++static unsigned long domain_release_host_claims(struct domain *d,
++                                                unsigned long release)
++{
++    unsigned long host_wide_claims;
++
++    ASSERT(d->outstanding_pages >= d->node_claims);
++    host_wide_claims = d->outstanding_pages - d->node_claims;
++
++    if ( release > host_wide_claims )
++        release = host_wide_claims;
++
++    ASSERT(release <= outstanding_claims);
++
++    outstanding_claims -= release;
++    d->outstanding_pages -= release;
++
++    return release;
++}
++
++/* Release claims from the node-specific claims pool of the domain. */
++static unsigned long domain_release_node_claims(
++    struct domain *d, nodeid_t node, unsigned long release)
++{
++    if ( !d->claims[node] )
++        return 0;
++
++    if ( release > d->claims[node] )
++        release = d->claims[node];
++
++    ASSERT(claimed_pages[node] >= release);
++    ASSERT(d->node_claims >= release);
++    ASSERT(d->outstanding_pages >= release);
++    ASSERT(outstanding_claims >= release);
++
++    claimed_pages[node] -= release;
++    d->claims[node] -= release;
++    d->node_claims -= release;
++    d->outstanding_pages -= release;
++    outstanding_claims -= release;
++
++    return release;
++}
++
++/*
++ * Recall node-specific claims from a domain until either the specified number
++ * of pages has been recalled, or all node-specific claims have been exhausted.
++ */
++static void domain_recall_node_claims(struct domain *d, unsigned long recall)
++{
++    nodeid_t node;
++
++    /*
++     * When NUMA node offlining is implemented, it will be responsible for
++     * recalling or moving claims off a node before offlining it. Therefore,
++     * offline nodes are not iterated here.
++     */
++    for_each_online_node ( node )
++    {
++        if ( !recall || !d->node_claims )
++            break;
++        recall -= domain_release_node_claims(d, node, recall);
++    }
++}
++
++/* Get claim entries for the outstanding claims of a domain. */
++int domain_get_claim_entries(struct domain *d, uint32_t *nr_entries,
++                             xen_memory_claim_t *entries)
++{
++    unsigned int needed_entries = 1, max_entries = *nr_entries;
++    nodeid_t node;
++
++    /* If max_entries is 0, only the number of needed entries is returned. */
++    if ( max_entries )
++    {
++        memset(entries, 0, sizeof(*entries) * max_entries);
++        entries[0].target = XEN_DOMCTL_CLAIM_MEMORY_HOST;
++    }
++
++    spin_lock(&heap_lock);
++    if ( max_entries )
++    {
++        ASSERT(d->outstanding_pages >= d->node_claims);
++        entries[0].pages = d->outstanding_pages - d->node_claims;
++    }
++
++    for_each_online_node ( node )
++    {
++        if ( !d->claims[node] )
++            continue;
++
++        if ( needed_entries < max_entries )
++        {
++            entries[needed_entries].target = node;
++            entries[needed_entries].pages = d->claims[node];
++        }
++        needed_entries++;
++    }
++    spin_unlock(&heap_lock);
++    *nr_entries = needed_entries;
++    return needed_entries <= max_entries ? 0 : -ERANGE;
++}
++
++/* Validate a set of claim records and install it if valid. */
++int domain_set_claim_entries(struct domain *d, uint32_t nr_entries,
++                             const xen_memory_claim_t *claim_set)
++{
++    uint64_t avail_pages, request, node_requests = 0, host_requests = 0;
++    nodemask_t nodes;
++    uint32_t node;
++    int ret = -EINVAL;
++    bool host_request_seen = false, legacy_semantics = false;
++
++    /*
++     * Two locks are needed here:
++     *  - d->page_alloc_lock: protects accesses to d->{tot,max,extra}_pages.
++     *  - heap_lock: protects accesses to total_avail_pages, node_avail_pages,
++     *    avail[], scrub state and all total and node-specific claim counters.
++     */
++    nrspin_lock(&d->page_alloc_lock);
++    spin_lock(&heap_lock);
++
++    /*
++     * Phase 1: Check and process the individual claim entries. Check
++     * the node-specific claim requests, and validate them against the
++     * available memory. Track legacy and host-wide claim requests and
++     * prepare validation of the combined claims in Phase 2.
++     */
++    nodes_clear(nodes);
++    for ( uint32_t i = 0; i < nr_entries; i++ )
++    {
++        node = claim_set[i].target;
++        request = claim_set[i].pages;
++
++        if ( claim_set[i].cmd ) /* Reserved for possible future use. */
++            goto out;
++
++        switch ( node )
++        {
++        case XEN_DOMCTL_CLAIM_MEMORY_LEGACY:
++            legacy_semantics = true;
++            fallthrough;
++        case XEN_DOMCTL_CLAIM_MEMORY_HOST:
++            if ( host_request_seen ) /* Only one host-wide request allowed. */
++                goto out;
++
++            host_request_seen = true;
++            host_requests = request;
++            continue;
++        }
++
++        /* Node-specific claim. */
++        if ( node >= MAX_NUMNODES || !node_online(node) )
++        {
++            ret = -ENOENT; /* Node not valid or not online. */
++            goto out;
++        }
++
++        if ( nodemask_test(node, &nodes) ) /* Only one request per node. */
++            goto out;
++        node_set(node, nodes);
++
++        ASSERT(node_avail_pages[node] >= claimed_pages[node]);
++        avail_pages = node_avail_pages[node] - claimed_pages[node];
++
++        if ( request > avail_pages + d->claims[node] )
++        {
++            ret = -ENOMEM; /* Request exceeds available memory on node. */
++            goto out;
++        }
++        node_requests += request; /* The combined total is checked below. */
++    }
++
++    /*
++     * Phase 2: Validate the combined claim set.
++     * Apply legacy semantics if needed, then check that the total fits
++     * within d->max_pages and within the available unclaimed heap memory.
++     * A zero new-claim request is a pure release; skip validation entirely.
++     */
++    if ( legacy_semantics )
++    {
++        if ( node_requests )
++            goto out;
++
++        if ( !host_requests )
++            goto release_existing;
++
++        /*
++         * Legacy semantics require the request to exceed the current
++         * allocation; the request is then reduced by the current allocation.
++         * Existing outstanding claims are not allowed.
++         */
++        if ( d->outstanding_pages ||
++             host_requests <= domain_tot_pages(d) )
++            goto out;
++
++        host_requests -= domain_tot_pages(d);
++    }
++    else if ( !host_requests && !node_requests )
++        goto release_existing;
++
++    /* Ensure new claims plus domain_tot_pages() fit into d->max_pages. */
++    if ( host_requests > d->max_pages ||
++         node_requests > d->max_pages - host_requests ||
++         node_requests + host_requests + domain_tot_pages(d) > d->max_pages )
++        goto out;
++
++    /* Ensure new claims fit in the total unclaimed heap memory. */
++    ASSERT(total_avail_pages >= outstanding_claims);
++    if ( node_requests + host_requests >
++         (total_avail_pages - outstanding_claims) + d->outstanding_pages )
++    {
++        /* New claims would exceed available unclaimed memory. */
++        ret = -ENOMEM;
++        goto out;
++    }
++
++ release_existing:
++    /* Phase 3: Remove the old claims before installing the new claims. */
++    domain_recall_node_claims(d, d->node_claims);
++    domain_release_host_claims(d, d->outstanding_pages);
++    ASSERT(!d->node_claims && !d->outstanding_pages);
++
++    /* Phase 4: Install new node-specific and host-wide claims. */
++    d->node_claims = node_requests;
++    d->outstanding_pages = host_requests + node_requests;
++    outstanding_claims += d->outstanding_pages;
++
++    /* Phase 5: Install the individual node claims. */
++    for ( uint32_t i = 0; i < nr_entries; i++ )
++    {
++        node = claim_set[i].target;
++        request = claim_set[i].pages;
++        if ( node >= MAX_NUMNODES ) /* Skip non-node claim targets. */
++            continue;
++
++        ASSERT(!d->claims[node]);
++        d->claims[node] = request;
++        claimed_pages[node] += request;
++    }
++    ret = 0;
++ out:
++    spin_unlock(&heap_lock);
++    nrspin_unlock(&d->page_alloc_lock);
++    return ret;
++}
++
+ static struct page_info *get_free_buddy(unsigned int zone_lo,
+                                         unsigned int zone_hi,
+                                         unsigned int order, unsigned int memflags,
+@@ -907,6 +1101,18 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
+      */
+     for ( ; ; )
+     {
++        unsigned long avail_pages;
++
++        ASSERT(node_avail_pages[node] >= claimed_pages[node]);
++        avail_pages = node_avail_pages[node] - claimed_pages[node];
++
++        if ( d && !(memflags & MEMF_no_refcount) )
++            avail_pages += d->claims[node];
++
++        /* Skip this node if memory and claims do not permit this request. */
++        if ( avail_pages < (1UL << order) )
++            goto next_node;
++
+         zone = zone_hi;
+         do {
+             /* Check if target node can support the allocation. */
+@@ -936,6 +1142,7 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
+             }
+         } while ( zone-- > zone_lo ); /* careful: unsigned zone may wrap */
+ 
++ next_node:
+         if ( (memflags & MEMF_exact_node) && req_node != NUMA_NO_NODE )
+             return NULL;
+ 
+@@ -1047,13 +1254,13 @@ static struct page_info *alloc_heap_pages(
+         }
+     }
+ 
+-    ASSERT(avail[node][zone] >= request);
+-    avail[node][zone] -= request;
+-    ASSERT(total_avail_pages >= request);
+-    total_avail_pages -= request;
+-    ASSERT(node_avail_pages[node] >= request);
+-    node_avail_pages[node] -= request;
+-
++    /*
++     * Ensure the domain's claims are fully redeemed before deducting
++     * the allocation from the page counters, otherwise the host or the
++     * node might be left with more claims than available pages. This would
++     * break the invariants claimed_pages[node] <= node_avail_pages[node]
++     * and outstanding_claims <= total_avail_pages.
++     */
+     if ( d && d->outstanding_pages && !(memflags & MEMF_no_refcount) )
+     {
+         /*
+@@ -1071,13 +1278,34 @@ static struct page_info *alloc_heap_pages(
+          * the domain being destroyed before creation is finished.  Losing part
+          * of the claim makes no difference.
+          */
+-        unsigned long outstanding = min(d->outstanding_pages + 0UL, request);
++        unsigned long redeem = min(d->outstanding_pages + 0UL, request);
++
++        BUG_ON(redeem > outstanding_claims);
++
++        /* Maintain invariant: claimed_pages[node] <= node_avail_pages[node] */
++        redeem -= domain_release_node_claims(d, node, redeem);
+ 
+-        BUG_ON(outstanding > outstanding_claims);
+-        outstanding_claims -= outstanding;
+-        d->outstanding_pages -= outstanding;
++        if ( redeem )
++        {
++            /*
++             * Maintain the invariant outstanding_claims <= total_avail_pages:
++             * Redeem from the host-wide claims pool and if needed from other
++             * nodes' claims pools to maintain that outstanding_claims do not
++             * exceed total_avail_pages after deducting the allocation.
++             */
++            redeem -= domain_release_host_claims(d, redeem);
++            domain_recall_node_claims(d, redeem);
++        }
+     }
+ 
++    /* Having redeemed claims, deduct the allocation from the page counters. */
++    ASSERT(total_avail_pages >= request);
++    total_avail_pages -= request;
++    ASSERT(node_avail_pages[node] >= request);
++    node_avail_pages[node] -= request;
++    ASSERT(avail[node][zone] >= request);
++    avail[node][zone] -= request;
++
+     check_low_mem_virq();
+ 
+     if ( d != NULL )
+@@ -1166,6 +1394,7 @@ static int reserve_offlined_page(struct page_info *head)
+     unsigned int node = page_to_nid(head);
+     int zone = page_to_zone(head), i, head_order = PFN_ORDER(head), count = 0;
+     struct page_info *cur_head;
++    struct domain *d;
+     unsigned int cur_order, first_dirty;
+ 
+     ASSERT(spin_is_locked(&heap_lock));
+@@ -1256,6 +1485,43 @@ static int reserve_offlined_page(struct page_info *head)
+         count++;
+     }
+ 
++    /* Offlining pages may violate claim invariants; restore them if needed. */
++    if ( claimed_pages[node] > node_avail_pages[node] ||
++         outstanding_claims > total_avail_pages )
++    {
++        rcu_read_lock(&domlist_read_lock);
++
++        if ( claimed_pages[node] > node_avail_pages[node] )
++        {
++            unsigned long overclaim = claimed_pages[node] -
++                                      node_avail_pages[node];
++
++            for_each_domain ( d )
++            {
++                overclaim -= domain_release_node_claims(d, node, overclaim);
++                if ( !overclaim )
++                    break;
++            }
++        }
++
++        if ( outstanding_claims > total_avail_pages )
++        {
++            unsigned long overclaim = outstanding_claims - total_avail_pages;
++
++            for_each_domain ( d )
++            {
++                overclaim -= domain_release_host_claims(d, overclaim);
++                if ( !overclaim )
++                    break;
++            }
++        }
++
++        rcu_read_unlock(&domlist_read_lock);
++
++        ASSERT(claimed_pages[node] <= node_avail_pages[node]);
++        ASSERT(outstanding_claims <= total_avail_pages);
++    }
++
+     return count;
+ }
+ 
+diff --git a/xen/include/public/domctl.h b/xen/include/public/domctl.h
+index 8f6708c0a7cd..352d7095c944 100644
+--- a/xen/include/public/domctl.h
++++ b/xen/include/public/domctl.h
+@@ -1276,6 +1276,42 @@ struct xen_domctl_get_domain_state {
+     uint64_t unique_id;      /* Unique domain identifier. */
+ };
+ 
++struct xen_memory_claim {
++    uint64_aligned_t pages; /* Number of pages to claim. */
++    uint32_t target;        /* NUMA node or special target constant. */
++    uint32_t cmd;           /* Reserved, must be zero. */
++};
++typedef struct xen_memory_claim xen_memory_claim_t;
++DEFINE_XEN_GUEST_HANDLE(xen_memory_claim_t);
++
++/* Special claim targets for the target field of xen_memory_claim_t. */
++#define XEN_DOMCTL_CLAIM_MEMORY_HOST     0x80000000U /* Host-wide claims. */
++#define XEN_DOMCTL_CLAIM_MEMORY_LEGACY   0x40000000U /* Legacy semantics. */
++
++/*
++ * XEN_DOMCTL_claim_memory
++ *
++ * Install or query a domain memory claim set. A SET operation replaces the
++ * existing claim set atomically. Claims are redeemed by later allocations to
++ * the domain. A SET request whose entries all have pages == 0 releases any
++ * existing claims.
++ *
++ * For GET, callers may pass nr_entries == 0 and claim_set == NULL to query the
++ * number of records needed. Xen returns -ERANGE and updates nr_entries. If the
++ * supplied array is too small, Xen returns -ERANGE and updates nr_entries
++ * without copying partial records.
++ */
++struct xen_domctl_claim_memory {
++    /* IN/OUT: Array of struct xen_memory_claim. */
++    XEN_GUEST_HANDLE_64(xen_memory_claim_t) claim_set;
++    /* IN/OUT: Number of records in the claim_set array. */
++    uint32_t nr_entries;
++    /* IN: Operation to perform on the claim set (GET or SET). */
++    uint32_t mode;
++#define XEN_DOMCTL_CLAIM_MEMORY_SET 0U /* Set the claim set for the domain. */
++#define XEN_DOMCTL_CLAIM_MEMORY_GET 1U /* Get the claim set of the domain. */
++};
++
+ struct xen_domctl {
+ /* Stable domctl ops: interface_version is required to be 0.  */
+     uint32_t cmd;
+@@ -1368,6 +1404,7 @@ struct xen_domctl {
+ #define XEN_DOMCTL_gsi_permission                88
+ #define XEN_DOMCTL_set_llc_colors                89
+ #define XEN_DOMCTL_get_domain_state              90 /* stable interface */
++#define XEN_DOMCTL_claim_memory                  91
+ #define XEN_DOMCTL_gdbsx_guestmemio            1000
+ #define XEN_DOMCTL_gdbsx_pausevcpu             1001
+ #define XEN_DOMCTL_gdbsx_unpausevcpu           1002
+@@ -1436,6 +1473,7 @@ struct xen_domctl {
+ #endif
+         struct xen_domctl_set_llc_colors    set_llc_colors;
+         struct xen_domctl_get_domain_state  get_domain_state;
++        struct xen_domctl_claim_memory      claim_memory;
+         uint8_t                             pad[128];
+     } u;
+ };
+diff --git a/xen/include/public/memory.h b/xen/include/public/memory.h
+index bd9fc37b5297..086334af051b 100644
+--- a/xen/include/public/memory.h
++++ b/xen/include/public/memory.h
+@@ -569,6 +569,8 @@ DEFINE_XEN_GUEST_HANDLE(xen_mem_sharing_op_t);
+  * for 10, only 7 additional pages are claimed.
+  *
+  * Caller must be privileged or the hypercall fails.
++ *
++ * Note: This hypercall is superseded by XEN_DOMCTL_claim_memory.
+  */
+ #define XENMEM_claim_pages                  24
+ 
+diff --git a/xen/include/xen/mm.h b/xen/include/xen/mm.h
+index b80bec00c124..b3a35c4bc8d6 100644
+--- a/xen/include/xen/mm.h
++++ b/xen/include/xen/mm.h
+@@ -72,6 +72,7 @@
+ #include <public/memory.h>
+ 
+ struct page_info;
++struct xen_memory_claim;
+ 
+ extern bool using_static_heap;
+ 
+@@ -131,7 +132,10 @@ int populate_pt_range(unsigned long virt, unsigned long nr_mfns);
+ /* Claim handling */
+ unsigned long __must_check domain_adjust_tot_pages(struct domain *d,
+     long pages);
+-int domain_set_outstanding_pages(struct domain *d, unsigned long pages);
++int domain_set_claim_entries(struct domain *d, uint32_t nr_entries,
++                             const struct xen_memory_claim *claim_set);
++int domain_get_claim_entries(struct domain *d, uint32_t *nr_entries,
++                             struct xen_memory_claim *claim_set);
+ void get_outstanding_claims(uint64_t *free_pages, uint64_t *outstanding_pages);
+ 
+ /* Domain suballocator. These functions are *not* interrupt-safe.*/
+diff --git a/xen/include/xen/sched.h b/xen/include/xen/sched.h
+index 00db1da12f21..f671e0c4c7b3 100644
+--- a/xen/include/xen/sched.h
++++ b/xen/include/xen/sched.h
+@@ -419,6 +419,10 @@ struct domain
+     unsigned int     xenheap_pages;     /* pages allocated from Xen heap */
+     /* Pages claimed but not possessed, protected by global heap_lock. */
+     unsigned int     outstanding_pages;
++    unsigned int     node_claims;       /* Sum of per-node claims. */
++    /* Domain objects use dedicated pages, leaving room for per-node claims. */
++    unsigned int     claims[MAX_NUMNODES]; /* Per-NUMA-node claims. */
++
+     unsigned int     max_pages;         /* maximum value for domain_tot_pages() */
+     unsigned int     extra_pages;       /* pages not included in domain_tot_pages() */
+ 
+diff --git a/xen/xsm/flask/hooks.c b/xen/xsm/flask/hooks.c
+index 28522dcbd271..9e999ac1ba73 100644
+--- a/xen/xsm/flask/hooks.c
++++ b/xen/xsm/flask/hooks.c
+@@ -651,6 +651,7 @@ static int cf_check flask_domctl(struct domain *d, unsigned int cmd,
+ 
+     /* These have individual XSM hooks (common/domctl.c) */
+     case XEN_DOMCTL_getdomaininfo:
++    case XEN_DOMCTL_claim_memory:
+     case XEN_DOMCTL_scheduler_op:
+     case XEN_DOMCTL_irq_permission:
+     case XEN_DOMCTL_iomem_permission:
+diff --git a/xen/xsm/flask/policy/access_vectors b/xen/xsm/flask/policy/access_vectors
+index bbb9c117ec4a..e7defa117a16 100644
+--- a/xen/xsm/flask/policy/access_vectors
++++ b/xen/xsm/flask/policy/access_vectors
+@@ -216,6 +216,7 @@ class domain2
+ # XEN_DOMCTL_scheduler_op with XEN_DOMCTL_SCHEDOP_putinfo
+     setscheduler
+ # XENMEM_claim_pages
++# XEN_DOMCTL_claim_memory
+     setclaim
+ # XEN_DOMCTL_cacheflush
+     cacheflush
+-- 
+2.39.5
+
+
+
+From mboxrd@z Thu Jan  1 00:00:00 1970
+Return-Path: <xen-devel-bounces@lists.xenproject.org>
+X-Spam-Checker-Version: SpamAssassin 3.4.0 (2014-02-07) on
+	aws-us-west-2-korg-lkml-1.web.codeaurora.org
+Received: from lists.xenproject.org (lists.xenproject.org [192.237.175.120])
+	(using TLSv1.2 with cipher ECDHE-RSA-AES256-GCM-SHA384 (256/256 bits))
+	(No client certificate requested)
+	by smtp.lore.kernel.org (Postfix) with ESMTPS id C3B7BCD3445
+	for <xen-devel@archiver.kernel.org>; Fri,  8 May 2026 20:42:18 +0000 (UTC)
+Received: from list by lists.xenproject.org with outflank-mailman.1304175.1577271 (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wLS1P-0004NK-0F; Fri, 08 May 2026 20:42:07 +0000
+X-Outflank-Mailman: Message body and most headers restored to incoming version
+Received: by outflank-mailman (output) from mailman id 1304175.1577271; Fri, 08 May 2026 20:42:06 +0000
+Received: from localhost ([127.0.0.1] helo=lists.xenproject.org)
+	by lists.xenproject.org with esmtp (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wLS1O-0004ND-To; Fri, 08 May 2026 20:42:06 +0000
+Received: by outflank-mailman (input) for mailman id 1304175;
+ Fri, 08 May 2026 20:42:06 +0000
+Received: from mx.expurgate.net ([195.190.135.10])
+ by lists.xenproject.org with esmtp (Exim 4.92)
+ (envelope-from <bernhard.kaindl@citrix.com>) id 1wLS1O-0004N7-Fu
+ for xen-devel@lists.xenproject.org; Fri, 08 May 2026 20:42:06 +0000
+Received: from mx.expurgate.net (helo=localhost) by mx.expurgate.net with esmtp
+ id 1wLS1N-003xE7-PW
+ for xen-devel@lists.xenproject.org; Fri, 08 May 2026 22:42:05 +0200
+Received: from [10.42.69.9] (helo=localhost)
+ by localhost with ESMTP (eXpurgate MTA 0.9.1)
+ (envelope-from <bernhard.kaindl@citrix.com>)
+ id 69fe4a84-bab6-0a2a0a5309dd-0a2a4509d400-24
+ for <xen-devel@lists.xenproject.org>; Fri, 08 May 2026 22:42:05 +0200
+Received: from [160.101.131.9] (helo=na1pdmzitismtp02.tibco.com)
+ by tlsNG-bad1c0.mxtls.expurgate.net with ESMTPS (eXpurgate 4.56.1)
+ (envelope-from <bernhard.kaindl@citrix.com>)
+ id 69fe4a9c-2497-0a2a45090019-a0658309da50-3
+ for <xen-devel@lists.xenproject.org>; Fri, 08 May 2026 22:42:05 +0200
+Received: from debian.eng.citrite.net (unknown [10.113.40.46])
+ by na1pdmzitismtp02.tibco.com (Postfix) with ESMTP id 6A3498245FBA;
+ Fri,  8 May 2026 16:40:59 -0400 (EDT)
+X-BeenThere: xen-devel@lists.xenproject.org
+List-Id: Xen developer discussion <xen-devel.lists.xenproject.org>
+List-Unsubscribe: <https://lists.xenproject.org/mailman/options/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=unsubscribe>
+List-Post: <mailto:xen-devel@lists.xenproject.org>
+List-Help: <mailto:xen-devel-request@lists.xenproject.org?subject=help>
+List-Subscribe: <https://lists.xenproject.org/mailman/listinfo/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=subscribe>
+Errors-To: xen-devel-bounces@lists.xenproject.org
+Precedence: list
+Sender: "Xen-devel" <xen-devel-bounces@lists.xenproject.org>
+Authentication-Results: eu.smtp.expurgate.cloud; none
+From: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+To: xen-devel@lists.xenproject.org
+Cc: Bernhard Kaindl <bernhard.kaindl@citrix.com>,
+	Christian Lindig <christian.lindig@citrix.com>,
+	David Scott <dave@recoil.org>,
+	Anthony PERARD <anthony.perard@vates.tech>,
+	Christian Lindig <christian.lindig@cloud.com>,
+	Andrew Cooper <andrew.cooper3@citrix.com>
+Subject: [PATCH v7 3/3] tools/ocaml: Add OCaml binding for NUMA claim sets
+Date: Fri,  8 May 2026 21:27:59 +0100
+Message-Id: <10726c7afb43856a1014c6b6e24700442ff8740e.1778272036.git.bernhard.kaindl@citrix.com>
+X-Mailer: git-send-email 2.39.5
+In-Reply-To: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+References: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+MIME-Version: 1.0
+Content-Transfer-Encoding: 8bit
+X-purgate-ID: tlsNG-bad1c0/1778272925-89775A53-D74062C2/0/0
+X-purgate-type: clean
+X-purgate-size: 4695
+
+Add an OCaml binding for xc_domain_claim_memory():
+
+- tools/ocaml/libs/xc/xenctrl.ml/mli:
+  Add claim record type and domain_claim_memory external.
+
+- tools/ocaml/libs/xc/xenctrl_stubs.c:
+  Marshal the OCaml claim array into a xen_memory_claim_t array.
+  Map nodes of -1 to XEN_DOMCTL_CLAIM_MEMORY_HOST for host-wide claims.
+
+Acked-by: Christian Lindig <christian.lindig@cloud.com>
+Requested-by: Andrew Cooper <andrew.cooper3@citrix.com>
+Signed-off-by: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+---
+ tools/ocaml/libs/xc/xenctrl.ml      | 10 ++++++
+ tools/ocaml/libs/xc/xenctrl.mli     | 10 ++++++
+ tools/ocaml/libs/xc/xenctrl_stubs.c | 50 +++++++++++++++++++++++++++++
+ 3 files changed, 70 insertions(+)
+
+diff --git a/tools/ocaml/libs/xc/xenctrl.ml b/tools/ocaml/libs/xc/xenctrl.ml
+index 97108b9d861a..8dd0c932e3ee 100644
+--- a/tools/ocaml/libs/xc/xenctrl.ml
++++ b/tools/ocaml/libs/xc/xenctrl.ml
+@@ -370,6 +370,16 @@ external domain_deassign_device: handle -> domid -> (int * int * int * int) -> u
+ external domain_test_assign_device: handle -> domid -> (int * int * int * int) -> bool
+   = "stub_xc_domain_test_assign_device"
+ 
++(* OCaml binding for xc_domain_claim_memory() to claim memory for a domain *)
++
++type claim =
++  {
++    pages: int64; (* Number of pages to claim *)
++    node: int32;  (* NUMA node ID, or -1 for host-wide claims *)
++  }
++external domain_claim_memory: handle -> domid -> claim array -> unit
++  = "stub_xc_domain_claim_memory"
++
+ external version: handle -> version = "stub_xc_version_version"
+ external version_compile_info: handle -> compile_info
+   = "stub_xc_version_compile_info"
+diff --git a/tools/ocaml/libs/xc/xenctrl.mli b/tools/ocaml/libs/xc/xenctrl.mli
+index 9fccb2c2c287..e78ea0dfe6c4 100644
+--- a/tools/ocaml/libs/xc/xenctrl.mli
++++ b/tools/ocaml/libs/xc/xenctrl.mli
+@@ -297,6 +297,16 @@ external domain_deassign_device: handle -> domid -> (int * int * int * int) -> u
+ external domain_test_assign_device: handle -> domid -> (int * int * int * int) -> bool
+   = "stub_xc_domain_test_assign_device"
+ 
++(* OCaml binding for xc_domain_claim_memory() to claim memory for a domain *)
++
++type claim =
++  {
++    pages: int64; (* Number of pages to claim *)
++    node: int32;  (* NUMA node ID, or -1 for host-wide claims *)
++  }
++external domain_claim_memory: handle -> domid -> claim array -> unit
++  = "stub_xc_domain_claim_memory"
++
+ external version : handle -> version = "stub_xc_version_version"
+ external version_compile_info : handle -> compile_info
+   = "stub_xc_version_compile_info"
+diff --git a/tools/ocaml/libs/xc/xenctrl_stubs.c b/tools/ocaml/libs/xc/xenctrl_stubs.c
+index c55f73b265b2..e91bebf5a4ed 100644
+--- a/tools/ocaml/libs/xc/xenctrl_stubs.c
++++ b/tools/ocaml/libs/xc/xenctrl_stubs.c
+@@ -1435,6 +1435,56 @@ CAMLprim value stub_xc_watchdog(value xch_val, value domid, value timeout)
+ 	CAMLreturn(Val_int(ret));
+ }
+ 
++/* OCaml binding for xc_domain_claim_memory() to claim memory for a domain */
++CAMLprim value stub_xc_domain_claim_memory(value xch_val, value domid,
++                                           value claim_set)
++{
++	CAMLparam3(xch_val, domid, claim_set);
++	xc_interface *xch = xch_of_val(xch_val);
++	mlsize_t nr_entries = Wosize_val(claim_set);
++	uint32_t c_domid = (uint32_t)Int_val(domid);
++	uint32_t c_nr_entries = (uint32_t)nr_entries;
++	xen_memory_claim_t *c_claim_set;
++
++	if (!nr_entries)
++		caml_invalid_argument("domain_claim_memory: claim_set cannot be empty");
++
++	c_claim_set = calloc(c_nr_entries, sizeof(*c_claim_set));
++	if (c_claim_set == NULL)
++		caml_raise_out_of_memory();
++
++	/* The entries of the claim_set are claim entries with {pages, node} */
++	for (mlsize_t i = 0; i < nr_entries; i++) {
++		value claim_entry = Field(claim_set, i);
++		int64_t pages = Int64_val(Field(claim_entry, 0));
++		int32_t node = Int32_val(Field(claim_entry, 1));
++
++		if (pages < 0 || node < -1) {
++			free(c_claim_set);
++			caml_invalid_argument("domain_claim_memory: invalid pages or node");
++		}
++		c_claim_set[i] = (xen_memory_claim_t) {
++			.pages = (uint64_t)pages,
++			.target = (node == -1)
++				? XEN_DOMCTL_CLAIM_MEMORY_HOST
++				: (uint32_t)node
++		};
++	}
++
++	/* May have to wait for the domctl lock, release the OCaml runtime lock. */
++	caml_enter_blocking_section();
++	int retval = xc_domain_claim_memory(xch, c_domid,
++					    XEN_DOMCTL_CLAIM_MEMORY_SET,
++					    &c_nr_entries, c_claim_set);
++	caml_leave_blocking_section();
++
++	free(c_claim_set);
++	if (retval < 0)
++		failwith_xc(xch);
++
++	CAMLreturn(Val_unit);
++}
++
+ /*
+  * Local variables:
+  *  indent-tabs-mode: t
+-- 
+2.39.5
+
+
+
+From mboxrd@z Thu Jan  1 00:00:00 1970
+Return-Path: <xen-devel-bounces@lists.xenproject.org>
+X-Spam-Checker-Version: SpamAssassin 3.4.0 (2014-02-07) on
+	aws-us-west-2-korg-lkml-1.web.codeaurora.org
+Received: from lists.xenproject.org (lists.xenproject.org [192.237.175.120])
+	(using TLSv1.2 with cipher ECDHE-RSA-AES256-GCM-SHA384 (256/256 bits))
+	(No client certificate requested)
+	by smtp.lore.kernel.org (Postfix) with ESMTPS id 179C4CD37B5
+	for <xen-devel@archiver.kernel.org>; Mon, 11 May 2026 09:39:26 +0000 (UTC)
+Received: from list by lists.xenproject.org with outflank-mailman.1305933.1578036 (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wMN6W-0007ud-3X; Mon, 11 May 2026 09:39:12 +0000
+X-Outflank-Mailman: Message body and most headers restored to incoming version
+Received: by outflank-mailman (output) from mailman id 1305933.1578036; Mon, 11 May 2026 09:39:12 +0000
+Received: from localhost ([127.0.0.1] helo=lists.xenproject.org)
+	by lists.xenproject.org with esmtp (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wMN6W-0007uW-0i; Mon, 11 May 2026 09:39:12 +0000
+Received: by outflank-mailman (input) for mailman id 1305933;
+ Mon, 11 May 2026 09:39:10 +0000
+Received: from mx.expurgate.net ([195.190.135.10])
+ by lists.xenproject.org with esmtp (Exim 4.92)
+ (envelope-from <jbeulich@suse.com>) id 1wMN6U-0007uQ-SL
+ for xen-devel@lists.xenproject.org; Mon, 11 May 2026 09:39:10 +0000
+Received: from mx.expurgate.net (helo=localhost) by mx.expurgate.net with esmtp
+ id 1wMN6U-005lBz-9L
+ for xen-devel@lists.xenproject.org; Mon, 11 May 2026 11:39:10 +0200
+Received: from [10.42.69.12] (helo=localhost)
+ by localhost with ESMTP (eXpurgate MTA 0.9.1)
+ (envelope-from <jbeulich@suse.com>)
+ id 6a01a3b7-e002-0a2a0a5209dd-0a2a450cc314-42
+ for <xen-devel@lists.xenproject.org>; Mon, 11 May 2026 11:39:10 +0200
+Received: from [209.85.221.51] (helo=mail-wr1-f51.google.com)
+ by tlsNG-d25034.mxtls.expurgate.net with ESMTPS (eXpurgate 4.56.1)
+ (envelope-from <jbeulich@suse.com>)
+ id 6a01a3be-62f1-0a2a450c0019-d155dd33d5be-3
+ for <xen-devel@lists.xenproject.org>; Mon, 11 May 2026 11:39:10 +0200
+Received: by mail-wr1-f51.google.com with SMTP id
+ ffacd0b85a97d-43d7645adbdso2175959f8f.1
+ for <xen-devel@lists.xenproject.org>; Mon, 11 May 2026 02:39:10 -0700 (PDT)
+Received: from [10.156.60.236] (ip-037-024-206-209.um08.pools.vodafone-ip.de.
+ [37.24.206.209]) by smtp.gmail.com with ESMTPSA id
+ ffacd0b85a97d-4548bb51d40sm23488806f8f.0.2026.05.11.02.39.08
+ (version=TLS1_3 cipher=TLS_AES_128_GCM_SHA256 bits=128/128);
+ Mon, 11 May 2026 02:39:09 -0700 (PDT)
+X-BeenThere: xen-devel@lists.xenproject.org
+List-Id: Xen developer discussion <xen-devel.lists.xenproject.org>
+List-Unsubscribe: <https://lists.xenproject.org/mailman/options/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=unsubscribe>
+List-Post: <mailto:xen-devel@lists.xenproject.org>
+List-Help: <mailto:xen-devel-request@lists.xenproject.org?subject=help>
+List-Subscribe: <https://lists.xenproject.org/mailman/listinfo/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=subscribe>
+Errors-To: xen-devel-bounces@lists.xenproject.org
+Precedence: list
+Sender: "Xen-devel" <xen-devel-bounces@lists.xenproject.org>
+Authentication-Results: eu.smtp.expurgate.cloud; dkim=pass header.s=google header.d=suse.com header.i="@suse.com" header.h="Content-Transfer-Encoding:In-Reply-To:Autocrypt:From:Content-Language:References:Cc:To:Subject:User-Agent:MIME-Version:Date:Message-ID"
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=suse.com; s=google; t=1778492350; x=1779097150; darn=lists.xenproject.org;
+        h=content-transfer-encoding:in-reply-to:autocrypt:from
+         :content-language:references:cc:to:subject:user-agent:mime-version
+         :date:message-id:from:to:cc:subject:date:message-id:reply-to;
+        bh=O48vKOkh4FXLBWarD/c9ETg3W1blsY9p5bn1qnH/PQc=;
+        b=Kkp4VXNL1QeSCctcOyhtSAupN25l+crJg4AMWs2xQd7fOq0s0e0tS5l7jk32tbi424
+         /bav1lTy2FPapHJARj4U2GWIdjermcVYd4bEgn6CtGvnXjEIiz70l5HVa1DYvNCpry++
+         HhnQrqb5v2oBg7W59QKGEJxfI3cLdgjY83B4+JQAwm69kHJF/0kGegF8XcgjuCWPHA4O
+         l8kE7GBkPqEeXvwDkegEBtZY1F+6QcyZmtERufmXc1xyE3rWp8Gzyhb4ralZ+x4jzpDp
+         y4wK0+76O5wejatwyQN8C2jFu4hD1hMBr7I8UIVXztyC/tDKGvxiy0zYBVGe26iyqnbA
+         3PNg==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20251104; t=1778492350; x=1779097150;
+        h=content-transfer-encoding:in-reply-to:autocrypt:from
+         :content-language:references:cc:to:subject:user-agent:mime-version
+         :date:message-id:x-gm-gg:x-gm-message-state:from:to:cc:subject:date
+         :message-id:reply-to;
+        bh=O48vKOkh4FXLBWarD/c9ETg3W1blsY9p5bn1qnH/PQc=;
+        b=XR7pIWhZzOSaOM6pyCMVwy82sj7NvU3WIFM2lMs/Ontx46UWHv1yH+tsfVDDHKj0cQ
+         v6rHN+RiLlmWY4pQ2Hmt2Q++uqQyyccadb24bFOz4yOLfgvlg8pblJdULW7a7B2alJsx
+         pb8OPQkof1bdxc1c1V5YQUDbviW4Jrrcy41qsfpO7eMqCVh7V5PMuigsJT+emRp6YTds
+         cL04twqu7gFR457Erds9h3TSUS1gb6rBfyWimXLeOVc3pzdz++5jhS7/apSd0ueJ2xSz
+         kZhnpH1TDy6oouyfAyHctoUEXYdwoWhXmaQ4HIwoPHKQP/BgZTXKAFb5fMzf3bM3JAF8
+         Vd1w==
+X-Forwarded-Encrypted: i=1; AFNElJ/gG2BTYaTTweB0Mo/SFB79BaCkaSr1692Ynl0Siy210oWeTXkmsPp1OWoxdeyiEINMZFDUpjnXzAU=@lists.xenproject.org
+X-Gm-Message-State: AOJu0YxDJu4Omx8UO2Laz1ltmCsdooFM7Y4e6HWVzcmqoAC5sVtba0l2
+	HHqb9D3J7oPxeDlTJ995gH8nmeqB55Kv2e7+jISgevbGx/u2rrlARzefeLqCda6FOQ==
+X-Gm-Gg: Acq92OGgeRAf8VBGMMp1xj0YRDtn4j7Os6sDUBXqw/3un4nDExhGKadUk3Mb7ngwN4m
+	VpWG1Jmz5FeiWPQlkOtIdkESkrQRj0/qTwSXA9KmSd/jD1e4kYO5mjJJlHjSFIhlG/cuQE5KAj2
+	hmCi65J0WIxKUkWtLVwRN7EbUaCn+66beGeg5L2xgLhGGrPKIB51CMb38RF1pz5xSrl9KYixWAq
+	v/5CuATdvU/noZhBrCVnI+OvMpPfhyKqg0ockB3/5+Dv/1P01TBLwc+cO5RQ6w4/a1UfvpvXiuV
+	R8NMOOZ3RcTfPplgHvdfGvY+oeFeVIbAxCqGm8tYY64Py4u9YaY+IICP/iWg7I+m4qhXPbX0fm3
+	AF58ujLSm0rafF5og9QoUcdc6xXNXSw9811J1y2oKEXTOGnNOFyZRaR1b3BL8hQJoj8YuazQwJI
+	e9f1mXz8l8kluW5kH9qH792RwYb+i3RFwa05mgWUYigX884zKRh8u0izFvWgo02Hkwskm5FdMXm
+	IFLgTiCKjrZCyVlSV16ZIwFVQ==
+X-Received: by 2002:a5d:6942:0:b0:452:2bb2:9dbe with SMTP id ffacd0b85a97d-4522bb29e31mr25210913f8f.1.1778492349473;
+        Mon, 11 May 2026 02:39:09 -0700 (PDT)
+Message-ID: <b60c1209-fdaf-4e9a-b93a-878a3aeb64fc@suse.com>
+Date: Mon, 11 May 2026 11:39:11 +0200
+MIME-Version: 1.0
+User-Agent: Mozilla Thunderbird
+Subject: Re: [PATCH v7 3/3] tools/ocaml: Add OCaml binding for NUMA claim sets
+To: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+Cc: Christian Lindig <christian.lindig@citrix.com>,
+ David Scott <dave@recoil.org>, Anthony PERARD <anthony.perard@vates.tech>,
+ Christian Lindig <christian.lindig@cloud.com>,
+ Andrew Cooper <andrew.cooper3@citrix.com>, xen-devel@lists.xenproject.org
+References: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+ <10726c7afb43856a1014c6b6e24700442ff8740e.1778272036.git.bernhard.kaindl@citrix.com>
+Content-Language: en-US
+From: Jan Beulich <jbeulich@suse.com>
+Autocrypt: addr=jbeulich@suse.com; keydata=
+ xsDiBFk3nEQRBADAEaSw6zC/EJkiwGPXbWtPxl2xCdSoeepS07jW8UgcHNurfHvUzogEq5xk
+ hu507c3BarVjyWCJOylMNR98Yd8VqD9UfmX0Hb8/BrA+Hl6/DB/eqGptrf4BSRwcZQM32aZK
+ 7Pj2XbGWIUrZrd70x1eAP9QE3P79Y2oLrsCgbZJfEwCgvz9JjGmQqQkRiTVzlZVCJYcyGGsD
+ /0tbFCzD2h20ahe8rC1gbb3K3qk+LpBtvjBu1RY9drYk0NymiGbJWZgab6t1jM7sk2vuf0Py
+ O9Hf9XBmK0uE9IgMaiCpc32XV9oASz6UJebwkX+zF2jG5I1BfnO9g7KlotcA/v5ClMjgo6Gl
+ MDY4HxoSRu3i1cqqSDtVlt+AOVBJBACrZcnHAUSuCXBPy0jOlBhxPqRWv6ND4c9PH1xjQ3NP
+ nxJuMBS8rnNg22uyfAgmBKNLpLgAGVRMZGaGoJObGf72s6TeIqKJo/LtggAS9qAUiuKVnygo
+ 3wjfkS9A3DRO+SpU7JqWdsveeIQyeyEJ/8PTowmSQLakF+3fote9ybzd880fSmFuIEJldWxp
+ Y2ggPGpiZXVsaWNoQHN1c2UuY29tPsJgBBMRAgAgBQJZN5xEAhsDBgsJCAcDAgQVAggDBBYC
+ AwECHgECF4AACgkQoDSui/t3IH4J+wCfQ5jHdEjCRHj23O/5ttg9r9OIruwAn3103WUITZee
+ e7Sbg12UgcQ5lv7SzsFNBFk3nEQQCACCuTjCjFOUdi5Nm244F+78kLghRcin/awv+IrTcIWF
+ hUpSs1Y91iQQ7KItirz5uwCPlwejSJDQJLIS+QtJHaXDXeV6NI0Uef1hP20+y8qydDiVkv6l
+ IreXjTb7DvksRgJNvCkWtYnlS3mYvQ9NzS9PhyALWbXnH6sIJd2O9lKS1Mrfq+y0IXCP10eS
+ FFGg+Av3IQeFatkJAyju0PPthyTqxSI4lZYuJVPknzgaeuJv/2NccrPvmeDg6Coe7ZIeQ8Yj
+ t0ARxu2xytAkkLCel1Lz1WLmwLstV30g80nkgZf/wr+/BXJW/oIvRlonUkxv+IbBM3dX2OV8
+ AmRv1ySWPTP7AAMFB/9PQK/VtlNUJvg8GXj9ootzrteGfVZVVT4XBJkfwBcpC/XcPzldjv+3
+ HYudvpdNK3lLujXeA5fLOH+Z/G9WBc5pFVSMocI71I8bT8lIAzreg0WvkWg5V2WZsUMlnDL9
+ mpwIGFhlbM3gfDMs7MPMu8YQRFVdUvtSpaAs8OFfGQ0ia3LGZcjA6Ik2+xcqscEJzNH+qh8V
+ m5jjp28yZgaqTaRbg3M/+MTbMpicpZuqF4rnB0AQD12/3BNWDR6bmh+EkYSMcEIpQmBM51qM
+ EKYTQGybRCjpnKHGOxG0rfFY1085mBDZCH5Kx0cl0HVJuQKC+dV2ZY5AqjcKwAxpE75MLFkr
+ wkkEGBECAAkFAlk3nEQCGwwACgkQoDSui/t3IH7nnwCfcJWUDUFKdCsBH/E5d+0ZnMQi+G0A
+ nAuWpQkjM1ASeQwSHEeAWPgskBQL
+In-Reply-To: <10726c7afb43856a1014c6b6e24700442ff8740e.1778272036.git.bernhard.kaindl@citrix.com>
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+X-purgate-ID: tlsNG-d25034/1778492350-DB97DCF5-304221DF/0/0
+X-purgate-type: clean
+X-purgate-size: 693
+
+On 08.05.2026 22:27, Bernhard Kaindl wrote:
+> Add an OCaml binding for xc_domain_claim_memory():
+> 
+> - tools/ocaml/libs/xc/xenctrl.ml/mli:
+>   Add claim record type and domain_claim_memory external.
+> 
+> - tools/ocaml/libs/xc/xenctrl_stubs.c:
+>   Marshal the OCaml claim array into a xen_memory_claim_t array.
+>   Map nodes of -1 to XEN_DOMCTL_CLAIM_MEMORY_HOST for host-wide claims.
+> 
+> Acked-by: Christian Lindig <christian.lindig@cloud.com>
+> Requested-by: Andrew Cooper <andrew.cooper3@citrix.com>
+> Signed-off-by: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+
+Nit: Chronologically order tags, please: Christian can't have ack-ed
+this before you signed off on it.
+
+Jan
+
+
+From mboxrd@z Thu Jan  1 00:00:00 1970
+Return-Path: <xen-devel-bounces@lists.xenproject.org>
+X-Spam-Checker-Version: SpamAssassin 3.4.0 (2014-02-07) on
+	aws-us-west-2-korg-lkml-1.web.codeaurora.org
+Received: from lists.xenproject.org (lists.xenproject.org [192.237.175.120])
+	(using TLSv1.2 with cipher ECDHE-RSA-AES256-GCM-SHA384 (256/256 bits))
+	(No client certificate requested)
+	by smtp.lore.kernel.org (Postfix) with ESMTPS id 5B8D3CD5BD5
+	for <xen-devel@archiver.kernel.org>; Thu, 28 May 2026 08:37:39 +0000 (UTC)
+Received: from list by lists.xenproject.org with outflank-mailman.1321014.1588048 (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wSWEz-0006v0-SN; Thu, 28 May 2026 08:37:21 +0000
+X-Outflank-Mailman: Message body and most headers restored to incoming version
+Received: by outflank-mailman (output) from mailman id 1321014.1588048; Thu, 28 May 2026 08:37:21 +0000
+Received: from localhost ([127.0.0.1] helo=lists.xenproject.org)
+	by lists.xenproject.org with esmtp (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wSWEz-0006ut-PO; Thu, 28 May 2026 08:37:21 +0000
+Received: by outflank-mailman (input) for mailman id 1321014;
+ Thu, 28 May 2026 08:37:20 +0000
+Received: from mx.expurgate.net ([195.190.135.10])
+ by lists.xenproject.org with esmtp (Exim 4.92)
+ (envelope-from <bernhard.kaindl@citrix.com>) id 1wSWEy-0006ul-9l
+ for xen-devel@lists.xenproject.org; Thu, 28 May 2026 08:37:20 +0000
+Received: from mx.expurgate.net (helo=localhost) by mx.expurgate.net with esmtp
+ id 1wSWEx-00Fldb-7G
+ for xen-devel@lists.xenproject.org; Thu, 28 May 2026 10:37:19 +0200
+Received: from [10.42.69.7] (helo=localhost)
+ by localhost with ESMTP (eXpurgate MTA 0.9.1)
+ (envelope-from <bernhard.kaindl@citrix.com>)
+ id 6a17feb5-bab6-0a2a0a5309dd-0a2a4507ea6c-34
+ for <xen-devel@lists.xenproject.org>; Thu, 28 May 2026 10:37:18 +0200
+Received: from [40.107.209.23]
+ (helo=PH8PR06CU001.outbound.protection.outlook.com)
+ by tlsNG-ef75cf.mxtls.expurgate.net with ESMTPS (eXpurgate 4.56.1)
+ (envelope-from <bernhard.kaindl@citrix.com>)
+ id 6a17febd-229c-0a2a45070019-286bd1179be2-3
+ for <xen-devel@lists.xenproject.org>; Thu, 28 May 2026 10:37:18 +0200
+Received: from LV3PR03MB7707.namprd03.prod.outlook.com (2603:10b6:408:28b::21)
+ by PH8PR03MB989115.namprd03.prod.outlook.com (2603:10b6:510:3a9::7)
+ with Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.21.71.13; Thu, 28 May
+ 2026 08:37:15 +0000
+Received: from LV3PR03MB7707.namprd03.prod.outlook.com
+ ([fe80::97e8:ef9c:9031:e2bf]) by LV3PR03MB7707.namprd03.prod.outlook.com
+ ([fe80::97e8:ef9c:9031:e2bf%4]) with mapi id 15.21.0071.011; Thu, 28 May 2026
+ 08:37:14 +0000
+X-BeenThere: xen-devel@lists.xenproject.org
+List-Id: Xen developer discussion <xen-devel.lists.xenproject.org>
+List-Unsubscribe: <https://lists.xenproject.org/mailman/options/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=unsubscribe>
+List-Post: <mailto:xen-devel@lists.xenproject.org>
+List-Help: <mailto:xen-devel-request@lists.xenproject.org?subject=help>
+List-Subscribe: <https://lists.xenproject.org/mailman/listinfo/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=subscribe>
+Errors-To: xen-devel-bounces@lists.xenproject.org
+Precedence: list
+Sender: "Xen-devel" <xen-devel-bounces@lists.xenproject.org>
+Authentication-Results: eu.smtp.expurgate.cloud; dkim=pass header.s=selector1 header.d=citrix.com header.i="@citrix.com" header.h="From:Date:Subject:Message-ID:Content-Type:MIME-Version:x-ms-exchange-senderadcheck"
+ARC-Seal: i=1; a=rsa-sha256; s=arcselector10001; d=microsoft.com; cv=none;
+ b=MwfVBhLgUZ3qb0njt8y1I1qsYmz32k8nWCtBRjV8d/XwqwTWx6cvNDlZJiW45agjcC7RJnD0zjT9tkUO3yTM0XlCL2foKyT0huQh7tpMSmHCM9QvNXtwSbURz5ute2sww3oVBE0ihlL6Ij+fcaRxCIjW9mBTZXVaVsm0iP47wMo8PV3IqEu23YnPURyxvUmC+FNk4gbm1bT2GUE+I/nCBAhB5YoVje+yu2pGf0SbtohUGgOwHet+U3yxn1bL+o6U60ytleN06KpKNRdLPOBdda0qOQSdcqb6OXRXSTHmIJw/Hd439OwS2x0POjadTZh+IQlmxpL/yVUDuqJEGnxyMQ==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=microsoft.com;
+ s=arcselector10001;
+ h=From:Date:Subject:Message-ID:Content-Type:MIME-Version:X-MS-Exchange-AntiSpam-MessageData-ChunkCount:X-MS-Exchange-AntiSpam-MessageData-0:X-MS-Exchange-AntiSpam-MessageData-1;
+ bh=/Wq5rWjUKBlnSSQtirvzS1PhtuEizuH1aUUrGvKtcdw=;
+ b=EYjW59uNLv4Q2FRXYxAD2NVHO4J2swZAlcBzfFsyNSgMAhhNO6Rm9OdBBTZ+Flzpl43RUJy9AOqH8KVdazmhMJcYFv+UH4hyQKAChOh+96N6Id1pPis8/zssqdTiODBdv7vItGSHqwr1CROY9yLtUWfNXt6Vb+w7vwS/Z10gYVYsvLCYVD4omVq4k+avY7/vLui4g4162Cf1jFqL/uxRAS5e8pxLTn4VVFh/GSnHbm27mg8iAtWIz6cyIw/nQhx0B9lSrLdSGlam0VgWipelyA03tvl8HkKmeAUuWvZGjNm3UjpJohNMoDoHIgcI2X+i9zzb/fJ6dx3/fq3Ezb5UGQ==
+ARC-Authentication-Results: i=1; mx.microsoft.com 1; spf=pass
+ smtp.mailfrom=citrix.com; dmarc=pass action=none header.from=citrix.com;
+ dkim=pass header.d=citrix.com; arc=none
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=citrix.com;
+ s=selector1;
+ h=From:Date:Subject:Message-ID:Content-Type:MIME-Version:X-MS-Exchange-SenderADCheck;
+ bh=/Wq5rWjUKBlnSSQtirvzS1PhtuEizuH1aUUrGvKtcdw=;
+ b=oRLiAPOLnqWytJjGS4TBn+jrpCcPgCSOmLtkYvJdttpdtSpCeXcJUhqtTO76bzjtunx9sVBh5J+kILAMrLoOgoqHumGsRtRwn3s8hvslMgMUZJGEO9eefzyP4opDpZUAW69NomCoURQIDlh87hLgQ0Jch9BlRLGn2Qu94UjpzAI=
+From: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+To: Jan Beulich <jbeulich@suse.com>
+CC: Christian Lindig <christian.lindig@citrix.com>, David Scott
+	<dave@recoil.org>, Anthony PERARD <anthony.perard@vates.tech>, Christian
+ Lindig <christian.lindig@cloud.com>, Andrew Cooper
+	<andrew.cooper@citrix.com>, "xen-devel@lists.xenproject.org"
+	<xen-devel@lists.xenproject.org>
+Subject: RE: [PATCH v7 3/3] tools/ocaml: Add OCaml binding for NUMA claim sets
+Thread-Topic: [PATCH v7 3/3] tools/ocaml: Add OCaml binding for NUMA claim
+ sets
+Thread-Index: AQHc3yskZefH5Dcnuk2paHsViwIsPLYIlbSAgBqkjPA=
+Date: Thu, 28 May 2026 08:37:14 +0000
+Message-ID: 
+ <LV3PR03MB7707CEA80CEC74939A6E508187092@LV3PR03MB7707.namprd03.prod.outlook.com>
+References: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+ <10726c7afb43856a1014c6b6e24700442ff8740e.1778272036.git.bernhard.kaindl@citrix.com>
+ <b60c1209-fdaf-4e9a-b93a-878a3aeb64fc@suse.com>
+In-Reply-To: <b60c1209-fdaf-4e9a-b93a-878a3aeb64fc@suse.com>
+Accept-Language: en-GB, en-US
+Content-Language: en-GB
+X-MS-Has-Attach: 
+X-MS-TNEF-Correlator: 
+authentication-results: dkim=none (message not signed)
+ header.d=none;dmarc=none action=none header.from=citrix.com;
+x-ms-publictraffictype: Email
+x-ms-traffictypediagnostic: LV3PR03MB7707:EE_|PH8PR03MB989115:EE_
+x-ms-office365-filtering-correlation-id: 0bb2bc9c-acfe-4b4b-3194-08debc9451dc
+x-ms-exchange-senderadcheck: 1
+x-ms-exchange-antispam-relay: 0
+x-microsoft-antispam: 
+ BCL:0;ARA:13230040|1800799024|376014|366016|11063799006|5023799004|56012099006|4143699003|18002099003|22082099003|38070700021;
+x-microsoft-antispam-message-info: 
+ 1ge9km4HHhEw/1tDnio0I5Qojv+PqgED93o89J0VMU8zV8QDHt7025U9m7yk1MpMJshwprNlLECCWFo7G7WkoI2Wh+qfyltGj7UDbTgeyYoRdi8ew5hFavVjfwa4dVRLh7sVZHqFc3QNP8FdpaWgVpxVx8J6XFn8y1OytEJsknWNvQEVjIPsq+ZBro5jJo18ftwyfaJks7sWctMgNZFfrXW/48XTyaAw6J5a0Yh1srMBtiKPPLtMPWwBPtkBtKpmcxFmglrwQkrKnutfgUmaOg5h8aVw84f4XREhhzkgxpaW2Bxgt/xOMAf0b1RSdOHAVd33OsAX+ccTuPfZ/Fqm8G+jtVDjGRjbJJzzwNVFy5DV3TWyZxur/sAjr4vcL3+lL10CwGLpK3t2XMslJbcZO0O6os0dapGqQeezV4FGl4t9Yo2dYDE18FWsNm4BIzskTpMO9xIPK83RyxApH+tM6UxGOXf53Z5qcvNYJZLzjLx/CwjR4ydhZhRYbJdS3fOT343diHSrDmeRGrQgGUuLSHbNlphum4YGeQywoqdU1x83miKfcXqdaxNX4KZ9qtSGGoxlidzOcw6h0vjJ5hZhpCfin8ZFcSwO5D497ZwHZj3/5iScb2UX6xPxFV/tDixz5Wi25WBkBFnRbtn0IFlTU+9R7mCAOPS9eGdXFyY6lBaAMfs3sZk+ymZTa9XSnQb4tMsd6EQMQSP+wjSxueL/VAp/at4DzqWN3wPgVoeBNc5EgsweqMl1cOvk5Y8rlvFp
+x-forefront-antispam-report: 
+ CIP:255.255.255.255;CTRY:;LANG:en;SCL:1;SRV:;IPV:NLI;SFV:NSPM;H:LV3PR03MB7707.namprd03.prod.outlook.com;PTR:;CAT:NONE;SFS:(13230040)(1800799024)(376014)(366016)(11063799006)(5023799004)(56012099006)(4143699003)(18002099003)(22082099003)(38070700021);DIR:OUT;SFP:1101;
+x-ms-exchange-antispam-messagedata-chunkcount: 1
+x-ms-exchange-antispam-messagedata-0: 
+ =?utf-8?B?VXFtNFlteE9hU29xb2F1MVNLY2ZhUEp0Yk1zOXJnQkdTWlhxb21zQUtIaVhP?=
+ =?utf-8?B?S2tGVkRPL092ZjFoemhOOW45WGJOcFJvdGgxQmdWT25XMEtQaVlkbTRMa2ow?=
+ =?utf-8?B?M3UydmU0U1hvWi9FRHdSalQvVEVVcFg4TzM4MDZjSUh6dS8xWnEzb0xaMmp3?=
+ =?utf-8?B?ZERzZUhqbGZZTU1NNjk2VkpoajFQUkNsUTRVK3Vzams5WlAzVE9EQ0k0UHI3?=
+ =?utf-8?B?VVVPMkpQUk1IQUFwVVVPM0VMdy9zanFTMDgyNlhOTk15OUUrZUtTcGhweURE?=
+ =?utf-8?B?T2pJTGtOMm9yTW16a1o2YmJjSjNsc3RXVUZ3aXRiMG9KOXhPY0ZQaDZ1ek1i?=
+ =?utf-8?B?dVNCbTJ4KzJzWkVDSVFhZ2FRM0k2Z21LbEJVM1RYSFNudTRlTmZ5NDJTckdX?=
+ =?utf-8?B?M084ZzY5UWdPMGk4cjl2UzRLUTF6WjN1MkN5UUx0ck9rd290c0VXTytpbDAy?=
+ =?utf-8?B?dnVCcmRWNXNRZEo3U0pxMmVqNExnR05qY3VmNVB0V2o5WFV0OEplcXFTd2Jp?=
+ =?utf-8?B?WFpJZTRYTU1vN0lCd2FUY0d0RUIrcmZ6VE5NZ2EzdTlsVi9DcVJmZDBMWlM5?=
+ =?utf-8?B?VDRjRko1UHI5Rzd5dkZsb1hUU01ZdTFzYWZyQVNKbmxIajJnNUg3ZnJ6bU91?=
+ =?utf-8?B?RVo3TGh0MExRTTFuS2NOcExyakFmTWc1dUs3ZG00R0U4Uk5hc1d2T0xyYVJ0?=
+ =?utf-8?B?bzViVGUwTnpMZWZkRjUxNVI1Z0hEb1hZMk8vVXRDMXNZVGhRTWppY3VoUGFo?=
+ =?utf-8?B?eUdiWEtGZlNHcXplQmU4eE1rMDZSREwrRE9uNmFEK2xtZGFPSUpxcU5mNXV0?=
+ =?utf-8?B?YnFnRE1oR1grODljL044Q0xRTkh6UVhITmRXRVpLNUFUU1ZXNnlEZGFCbVRD?=
+ =?utf-8?B?TzNCNExrWjZOQVAyMVk4U0J6TlJLS29mY0Y0blZEcm5wODB3Qy9vTHB1SFpn?=
+ =?utf-8?B?MGExTE1oNkRmQkNPMzEzd2pxSXNoa01WYmFwZElzMW0yUjNzM2xwcUVsV093?=
+ =?utf-8?B?aVVCSFR2dzBXQkNUN0Y4U2pmU3Bua3VlSTg4K3dsTHBjZ2R6MkdGd1JJQU5v?=
+ =?utf-8?B?SDBrcmQxaFZPQTNyU0dLRWtNS0NPWXYzajJGTHRTRzZteWt6b3NGSFVwOElj?=
+ =?utf-8?B?NUdHV3drQ1h5ZjduTWE3azVBSXRzNDI2ZC8zc3hQdzF0U0JYRjluZTdOb1RW?=
+ =?utf-8?B?Q2syWTJVN0lEVzRra3hwVC9seG1lOUI0K293L2hYQW9mN1gwYkpDeTdhYTdC?=
+ =?utf-8?B?RjZlMCt5Sm1HblI1S3Q1dUlseXhSTUIrUDVFQmFqSXAvaVR3dW1GRnlWZFZp?=
+ =?utf-8?B?M0E3Y09QR202S0x6M3g4ZEpjUTZpSVFFTFRnNHE1dytOdVc4Nk5IMFdQMnJT?=
+ =?utf-8?B?Q25KRmVFWWtaOWxUR2xITk81ekJzTWkrejJqdlVBQkZhdGxKaHVlVFMwYUM5?=
+ =?utf-8?B?cFdoWmFyaEFWNkJuZlh3Q2ZEVU81cU93QSs1R3UwZ1V0YTZjcmdRWEcxdFJJ?=
+ =?utf-8?B?SkJMeUEwdnFwUVR1S2lHeHVOMk9KcS91TlY4N3o4OHk4VjFzQjd1cVdXRnd4?=
+ =?utf-8?B?Z2xnY2JSN1ZFL0c2ZnhDWGdqcVdmSDY5ZjZqcWl6TERZL2RJaTJqWkFtd284?=
+ =?utf-8?B?ZnhXNlByWHJaODJLVnZSNnZzazZWM3hJbmVDQnlyL0pIUHJGNGFWYTE4MGJT?=
+ =?utf-8?B?anRxajdUajlyY3BObDFsdHJLcWp4Y0gxREg4dUo1cGNaWkVSdlpmT3p1eXFX?=
+ =?utf-8?B?b1ZoMnhoQ3BsM05tbE1XckNZWE1vOC9SUDZBdmRxVDc1SnhiMkp0QjJZK2FE?=
+ =?utf-8?B?Ynd0MmNqUlJMeE5BZ2pveFoza3V3N0VJb0oyRWtPcWdiSWlzSUR6MlBEbDho?=
+ =?utf-8?B?dXRvOHhIRDIzUVA4Mksxbm9QSFdjaXBLcW1LY3RveUJEOWt5anJ1MEUrV29w?=
+ =?utf-8?B?OGplQ1RwcDdneis5aVVPTWNFODhhdzhZV0NMTzd3SytHNUYvbmxlMzVsVlNZ?=
+ =?utf-8?B?NS9aeUZydHcyVUFVaDJITHhKcUVjd21mbVdEWVZLUnNYVkpCajFWS1hPMFJ1?=
+ =?utf-8?B?NHNYT1p2NmJ1a2wxNnQ5ejFPR0FHd09ONk1SZkRoRkZqY1N5N0szVmJWTStC?=
+ =?utf-8?B?OWZJOS9QRXhsYWpsZFFKaVRmRHA4dWgyK3RNZUR4ZmIyL2cvdG1Cc3pkR1Yr?=
+ =?utf-8?B?NzdWR29Jb3ZVbS9CRXAyMmxUV3IveldMeTBjVFlYaHpULzQzK3BoT3RVTU5K?=
+ =?utf-8?B?eHZaYnFDNnBydGk0UUwxMDhGSGhIclAybmIxVjkrSUdMN2pCZkZJZzQrWlpn?=
+ =?utf-8?B?Y1gvbEJYS3VQZUk4cmE2NGZKVUlHTGdwZVBZZzVNSk11QmtjcENLQT09?=
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+X-OriginatorOrg: citrix.com
+X-MS-Exchange-CrossTenant-AuthAs: Internal
+X-MS-Exchange-CrossTenant-AuthSource: LV3PR03MB7707.namprd03.prod.outlook.com
+X-MS-Exchange-CrossTenant-Network-Message-Id: 0bb2bc9c-acfe-4b4b-3194-08debc9451dc
+X-MS-Exchange-CrossTenant-originalarrivaltime: 28 May 2026 08:37:14.6826
+ (UTC)
+X-MS-Exchange-CrossTenant-fromentityheader: Hosted
+X-MS-Exchange-CrossTenant-id: 335836de-42ef-43a2-b145-348c2ee9ca5b
+X-MS-Exchange-CrossTenant-mailboxtype: HOSTED
+X-MS-Exchange-CrossTenant-userprincipalname: 0AFY/cjq67UdnWw9oR7drZ7LRwZU4VY4J2Fb3t2jzp5vXWtdtP4jdRve2MkVTz9RuOTpCcLuYeFls2Ww+igXVQRktM+13diCMCkqf+cYwto=
+X-MS-Exchange-Transport-CrossTenantHeadersStamped: PH8PR03MB989115
+X-purgate-ID: tlsNG-ef75cf/1779957438-22D77C48-1F227F8B/0/0
+X-purgate-type: clean
+X-purgate-size: 1138
+
+PiAtLS0tLU9yaWdpbmFsIE1lc3NhZ2UtLS0tLQ0KPiA+IEFja2VkLWJ5OiBDaHJpc3RpYW4gTGlu
+ZGlnIDxjaHJpc3RpYW4ubGluZGlnQGNsb3VkLmNvbT4NCj4gPiBSZXF1ZXN0ZWQtYnk6IEFuZHJl
+dyBDb29wZXIgPGFuZHJldy5jb29wZXIzQGNpdHJpeC5jb20+DQo+ID4gU2lnbmVkLW9mZi1ieTog
+QmVybmhhcmQgS2FpbmRsIDxiZXJuaGFyZC5rYWluZGxAY2l0cml4LmNvbT4NCj4gDQo+IE5pdDog
+Q2hyb25vbG9naWNhbGx5IG9yZGVyIHRhZ3MsIHBsZWFzZTogQ2hyaXN0aWFuIGNhbid0IGhhdmUg
+YWNrLWVkDQo+IHRoaXMgYmVmb3JlIHlvdSBzaWduZWQgb2ZmIG9uIGl0Lg0KPiANCj4gSmFuDQoN
+CkhpIEphbiwgYXMgdGhpcyB3YXMgdGhlIGxhc3QgcGF0Y2ggaW4gdGhpcyBzZXJpZXMsDQoNCkkg
+YXNzdW1lIHlvdSBmb3VuZCBubyByZWFzb24gd2hpY2ggY2FuJ3QgYmUgZml4ZWQgb24gbWVyZ2Ug
+Zm9yIHRoaXMNCnNlcmllcyBhbmQgeW91IGNhbiBhY2sgaXQ/IChJIHRoaW5rIGl0ZW0gY291bGQg
+YmUgZml4ZWQgb24gbWVyZ2UpDQoNCklmIHlvdSBjb3VsZCwgcGxlYXNlIGRvIHNvLCBvdGhlcndp
+c2UgY291bGQgSSB5b3UgZXhwZWRpdGUgeW91ciByZXZpZXcNCm9mIGl0Pw0KDQpBdCBsb3Qgb2Yg
+ZnVydGhlciBOVU1BIHdvcmsgZGVwZW5kcyBvbiBpdCwgYW5kIGl0IGFzIGl0IGhhcyBiZWVuIHBv
+c3RlZA0KaW4gdGhpcyBvciB2ZXJ5IHNpbWlsYXIgZm9ybSBiZWZvcmUgdGhlIGRlYWRsaW5lcyBm
+b3IgWGVuIDQuMjIsIGl0IHdvdWxkDQpiZSBuaWNlIGlmIGl0IGNvdWxkIGJlIGNvbnNpZGVyZWQg
+Zm9yIG1lcmdlLg0KDQpUaGFua3MsDQpCZXJuaGFyZA0K
+
+
+From mboxrd@z Thu Jan  1 00:00:00 1970
+Return-Path: <xen-devel-bounces@lists.xenproject.org>
+X-Spam-Checker-Version: SpamAssassin 3.4.0 (2014-02-07) on
+	aws-us-west-2-korg-lkml-1.web.codeaurora.org
+Received: from lists.xenproject.org (lists.xenproject.org [192.237.175.120])
+	(using TLSv1.2 with cipher ECDHE-RSA-AES256-GCM-SHA384 (256/256 bits))
+	(No client certificate requested)
+	by smtp.lore.kernel.org (Postfix) with ESMTPS id ABE55CD6E4A
+	for <xen-devel@archiver.kernel.org>; Tue,  2 Jun 2026 08:10:54 +0000 (UTC)
+Received: from list by lists.xenproject.org with outflank-mailman.1324537.1590062 (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wUKCj-00076K-Fg; Tue, 02 Jun 2026 08:10:29 +0000
+X-Outflank-Mailman: Message body and most headers restored to incoming version
+Received: by outflank-mailman (output) from mailman id 1324537.1590062; Tue, 02 Jun 2026 08:10:29 +0000
+Received: from localhost ([127.0.0.1] helo=lists.xenproject.org)
+	by lists.xenproject.org with esmtp (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wUKCj-00076D-D7; Tue, 02 Jun 2026 08:10:29 +0000
+Received: by outflank-mailman (input) for mailman id 1324537;
+ Tue, 02 Jun 2026 08:10:28 +0000
+Received: from mx.expurgate.net ([194.145.224.20])
+ by lists.xenproject.org with esmtp (Exim 4.92)
+ (envelope-from <jbeulich@suse.com>) id 1wUKCi-000767-O0
+ for xen-devel@lists.xenproject.org; Tue, 02 Jun 2026 08:10:28 +0000
+Received: from mx.expurgate.net (helo=localhost) by mx.expurgate.net with esmtp
+ id 1wUKCi-002Kvh-1N
+ for xen-devel@lists.xenproject.org; Tue, 02 Jun 2026 10:10:28 +0200
+Received: from [10.42.69.11] (helo=localhost)
+ by localhost with ESMTP (eXpurgate MTA 0.9.1)
+ (envelope-from <jbeulich@suse.com>)
+ id 6a1e8ff3-e002-0a2a0a5209dd-0a2a450b9664-6
+ for <xen-devel@lists.xenproject.org>; Tue, 02 Jun 2026 10:10:27 +0200
+Received: from [209.85.128.49] (helo=mail-wm1-f49.google.com)
+ by tlsNG-42698a.mxtls.expurgate.net with ESMTPS (eXpurgate 4.56.1)
+ (envelope-from <jbeulich@suse.com>)
+ id 6a1e8ff3-212f-0a2a450b0019-d1558031d10d-3
+ for <xen-devel@lists.xenproject.org>; Tue, 02 Jun 2026 10:10:27 +0200
+Received: by mail-wm1-f49.google.com with SMTP id
+ 5b1f17b1804b1-490ace40f4bso18189875e9.3
+ for <xen-devel@lists.xenproject.org>; Tue, 02 Jun 2026 01:10:27 -0700 (PDT)
+Received: from [10.156.60.236] (ip-037-024-206-209.um08.pools.vodafone-ip.de.
+ [37.24.206.209]) by smtp.gmail.com with ESMTPSA id
+ 5b1f17b1804b1-490b0daefbbsm83827365e9.0.2026.06.02.01.10.26
+ (version=TLS1_3 cipher=TLS_AES_128_GCM_SHA256 bits=128/128);
+ Tue, 02 Jun 2026 01:10:26 -0700 (PDT)
+X-BeenThere: xen-devel@lists.xenproject.org
+List-Id: Xen developer discussion <xen-devel.lists.xenproject.org>
+List-Unsubscribe: <https://lists.xenproject.org/mailman/options/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=unsubscribe>
+List-Post: <mailto:xen-devel@lists.xenproject.org>
+List-Help: <mailto:xen-devel-request@lists.xenproject.org?subject=help>
+List-Subscribe: <https://lists.xenproject.org/mailman/listinfo/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=subscribe>
+Errors-To: xen-devel-bounces@lists.xenproject.org
+Precedence: list
+Sender: "Xen-devel" <xen-devel-bounces@lists.xenproject.org>
+Authentication-Results: eu.smtp.expurgate.cloud; dkim=pass header.s=google header.d=suse.com header.i="@suse.com" header.h="Content-Transfer-Encoding:In-Reply-To:Autocrypt:From:Content-Language:References:Cc:To:Subject:User-Agent:MIME-Version:Date:Message-ID"
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=suse.com; s=google; t=1780387827; x=1780992627; darn=lists.xenproject.org;
+        h=content-transfer-encoding:in-reply-to:autocrypt:from
+         :content-language:references:cc:to:subject:user-agent:mime-version
+         :date:message-id:from:to:cc:subject:date:message-id:reply-to;
+        bh=ntSmeBB7M9YoPDLloTHlNm/+hIUx1/s2n4T5OhegxC8=;
+        b=f5omMzd0I80Fc6Wz9qLmqjs/8ncFedaBfRZ40OmmdSBMHD8wQAFtd/8pQmmv43tykd
+         ZZiWhQ9hEAFu6oZgEjau7Yv6dMJ/P5exz+MelWBDUim0Fp6jmTN2kZhWjKBT3V0G93g7
+         dvAFBVmkSw1jgixUGvIJ7ntt95Y4X2SOSLaKZGtHyix4KfVzhHwIrbed5hfAaOw42pH+
+         793cAUPA5oAobvR7n45H8xWdN444GTTubxRQP2xUPGcvNWiQqCamG71i7o3/hDMtiWJ7
+         tI3oeELLESS0zzNrd2fm1TtOVNISQMOfq/nfCL1gynKQywjR/iWmGX74FGBC2cPL+0Dc
+         gYEQ==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20251104; t=1780387827; x=1780992627;
+        h=content-transfer-encoding:in-reply-to:autocrypt:from
+         :content-language:references:cc:to:subject:user-agent:mime-version
+         :date:message-id:x-gm-gg:x-gm-message-state:from:to:cc:subject:date
+         :message-id:reply-to;
+        bh=ntSmeBB7M9YoPDLloTHlNm/+hIUx1/s2n4T5OhegxC8=;
+        b=dHvyhxxqz2Kp+1gWiDuEbCScdAeh/4ec6htUAmQ5+Z9PSoZnM7D8+q1uPjlD+IGC9T
+         evbZIM6UNl0Np0SfVxngQzFVKuAW2f1rPUhlGxaiVNfGpWLLoRwzBGt78+V+P1oodyRM
+         GYkv/VmZo3J5wNkK4GIm21qej4+CymPN4yPDHLl8y9yDLNcNtcrn8196u5Fwv9ya6Bj+
+         h+7hxw4oF69Tj49bZb0JGfoxFvbYUxIsUaXc1XkPdEZnhreB4LSDzFYA3JIZljAY1Z//
+         gc9sDtx/VgHk7KLPyYty90ROVyEcQr7u/BWeWmjTRf0ljSmKcB/y6Zz17NANQWpedIwC
+         gqyQ==
+X-Forwarded-Encrypted: i=1; AFNElJ9zpaB+S3foGrn8tVh5Tfr+vRppNANrsjVi+m8h3uvAXcd8aoyCrA9QnnJHp6kCmXqWe62Pr7W8ohg=@lists.xenproject.org
+X-Gm-Message-State: AOJu0YyKW4q5C7+nybRljvU10cyQyW1XLKhkItkDuGfDm3N3T5mLfobq
+	440uoZq4JGlosDBMW45ShNM8SonU9Kqkf6LgoFZ/DE2bd/PqKBTDa/aLoATHTCaDvQ==
+X-Gm-Gg: Acq92OEdsbKUUY6DRnC1kIcrwRdhccRaaiD4ZcwtMIK/Wl0b1+AAKyzdjjK2E5SLr80
+	3T8Odxme27cgtKYHVWMPNSqXmiQXM2kZ2++/8nvGQylSMEsqq49fg7sXWAhuf8LayUH3Od0+9ge
+	WpMfHjZYtpI1q7l32hq34IPt5fL4NDeiFOK4xxbVAJKCkGCgPedaApEvsuBHYYD9j0GGOTKqNnW
+	9+bn8oXPGBEVbl28x/39FrfYv2mXEjjXgmAwzkL4A2WPdxFTnLsivX1lCWTmttbiKfUx6Nj0NQ1
+	0hjNJtMOwvoZLjH1e6rr8n0cZeRZEUyRNSKnSptUVStEf2t/w+4qElSUynOQFrQqBkzxf0BEgpO
+	mz3N8rzq2bgacc0bp9orvDJ8dKI0uaVmylARdhaFThaW/2tN2AzufcqXMg7ZAYAcN8ruH8ZUeOn
+	Y5yQaPIBnJ8vthcjTya2NpnCMhmdtR9RLeYkNEBBy5Y63vcVfWMmB2OmC58qqpqWAVC0hwKxyzE
+	l1oQZVdNzZwnnG7Ipl2c2LMzw==
+X-Received: by 2002:a05:600c:8b57:b0:490:3c15:7146 with SMTP id 5b1f17b1804b1-490a5013670mr225647675e9.19.1780387827243;
+        Tue, 02 Jun 2026 01:10:27 -0700 (PDT)
+Message-ID: <efd6830e-493b-462a-aba7-d56d85943aa3@suse.com>
+Date: Tue, 2 Jun 2026 10:10:33 +0200
+MIME-Version: 1.0
+User-Agent: Mozilla Thunderbird
+Subject: Re: [PATCH v7 3/3] tools/ocaml: Add OCaml binding for NUMA claim sets
+To: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+Cc: Christian Lindig <christian.lindig@citrix.com>,
+ David Scott <dave@recoil.org>, Anthony PERARD <anthony.perard@vates.tech>,
+ Christian Lindig <christian.lindig@cloud.com>,
+ Andrew Cooper <andrew.cooper@citrix.com>,
+ "xen-devel@lists.xenproject.org" <xen-devel@lists.xenproject.org>
+References: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+ <10726c7afb43856a1014c6b6e24700442ff8740e.1778272036.git.bernhard.kaindl@citrix.com>
+ <b60c1209-fdaf-4e9a-b93a-878a3aeb64fc@suse.com>
+ <LV3PR03MB7707CEA80CEC74939A6E508187092@LV3PR03MB7707.namprd03.prod.outlook.com>
+Content-Language: en-US
+From: Jan Beulich <jbeulich@suse.com>
+Autocrypt: addr=jbeulich@suse.com; keydata=
+ xsDiBFk3nEQRBADAEaSw6zC/EJkiwGPXbWtPxl2xCdSoeepS07jW8UgcHNurfHvUzogEq5xk
+ hu507c3BarVjyWCJOylMNR98Yd8VqD9UfmX0Hb8/BrA+Hl6/DB/eqGptrf4BSRwcZQM32aZK
+ 7Pj2XbGWIUrZrd70x1eAP9QE3P79Y2oLrsCgbZJfEwCgvz9JjGmQqQkRiTVzlZVCJYcyGGsD
+ /0tbFCzD2h20ahe8rC1gbb3K3qk+LpBtvjBu1RY9drYk0NymiGbJWZgab6t1jM7sk2vuf0Py
+ O9Hf9XBmK0uE9IgMaiCpc32XV9oASz6UJebwkX+zF2jG5I1BfnO9g7KlotcA/v5ClMjgo6Gl
+ MDY4HxoSRu3i1cqqSDtVlt+AOVBJBACrZcnHAUSuCXBPy0jOlBhxPqRWv6ND4c9PH1xjQ3NP
+ nxJuMBS8rnNg22uyfAgmBKNLpLgAGVRMZGaGoJObGf72s6TeIqKJo/LtggAS9qAUiuKVnygo
+ 3wjfkS9A3DRO+SpU7JqWdsveeIQyeyEJ/8PTowmSQLakF+3fote9ybzd880fSmFuIEJldWxp
+ Y2ggPGpiZXVsaWNoQHN1c2UuY29tPsJgBBMRAgAgBQJZN5xEAhsDBgsJCAcDAgQVAggDBBYC
+ AwECHgECF4AACgkQoDSui/t3IH4J+wCfQ5jHdEjCRHj23O/5ttg9r9OIruwAn3103WUITZee
+ e7Sbg12UgcQ5lv7SzsFNBFk3nEQQCACCuTjCjFOUdi5Nm244F+78kLghRcin/awv+IrTcIWF
+ hUpSs1Y91iQQ7KItirz5uwCPlwejSJDQJLIS+QtJHaXDXeV6NI0Uef1hP20+y8qydDiVkv6l
+ IreXjTb7DvksRgJNvCkWtYnlS3mYvQ9NzS9PhyALWbXnH6sIJd2O9lKS1Mrfq+y0IXCP10eS
+ FFGg+Av3IQeFatkJAyju0PPthyTqxSI4lZYuJVPknzgaeuJv/2NccrPvmeDg6Coe7ZIeQ8Yj
+ t0ARxu2xytAkkLCel1Lz1WLmwLstV30g80nkgZf/wr+/BXJW/oIvRlonUkxv+IbBM3dX2OV8
+ AmRv1ySWPTP7AAMFB/9PQK/VtlNUJvg8GXj9ootzrteGfVZVVT4XBJkfwBcpC/XcPzldjv+3
+ HYudvpdNK3lLujXeA5fLOH+Z/G9WBc5pFVSMocI71I8bT8lIAzreg0WvkWg5V2WZsUMlnDL9
+ mpwIGFhlbM3gfDMs7MPMu8YQRFVdUvtSpaAs8OFfGQ0ia3LGZcjA6Ik2+xcqscEJzNH+qh8V
+ m5jjp28yZgaqTaRbg3M/+MTbMpicpZuqF4rnB0AQD12/3BNWDR6bmh+EkYSMcEIpQmBM51qM
+ EKYTQGybRCjpnKHGOxG0rfFY1085mBDZCH5Kx0cl0HVJuQKC+dV2ZY5AqjcKwAxpE75MLFkr
+ wkkEGBECAAkFAlk3nEQCGwwACgkQoDSui/t3IH7nnwCfcJWUDUFKdCsBH/E5d+0ZnMQi+G0A
+ nAuWpQkjM1ASeQwSHEeAWPgskBQL
+In-Reply-To: <LV3PR03MB7707CEA80CEC74939A6E508187092@LV3PR03MB7707.namprd03.prod.outlook.com>
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+X-purgate-ID: tlsNG-42698a/1780387827-21382F3B-A8E9AB31/0/0
+X-purgate-type: clean
+X-purgate-size: 1670
+
+On 28.05.2026 10:37, Bernhard Kaindl wrote:
+>> -----Original Message-----
+>>> Acked-by: Christian Lindig <christian.lindig@cloud.com>
+>>> Requested-by: Andrew Cooper <andrew.cooper3@citrix.com>
+>>> Signed-off-by: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+>>
+>> Nit: Chronologically order tags, please: Christian can't have ack-ed
+>> this before you signed off on it.
+> 
+> Hi Jan, as this was the last patch in this series,
+> 
+> I assume you found no reason which can't be fixed on merge for this
+> series and you can ack it? (I think item could be fixed on merge)
+
+Why would I ack an OCaml patch?
+
+As to fixing while committing - perhaps that's easily possible here, but
+(a) I wouldn't commit this (tools) patch on its own and (b) the other
+two patches look to still be pending (with me just having returned from
+a week of PTO I still didn't get around to read xen-develq, though).
+However, edits upon committing is strictly an offer by the committer. It
+shouldn't normally be the submitter to be asking for such.
+
+> If you could, please do so, otherwise could I you expedite your review
+> of it?
+
+Expedite review of what? As this isn't the first time to try to apply
+pressure for me to review your patches: May I please ask that you don't?
+Your patches aren't any different from patches by others.
+
+> At lot of further NUMA work depends on it, and it as it has been posted
+> in this or very similar form before the deadlines for Xen 4.22, it would
+> be nice if it could be considered for merge.
+
+Again, without having read xen-devel@ yet, it was my understanding
+(assumption) that the NUMA work has missed the 4.22 window.
+
+Jan
+
+
+From mboxrd@z Thu Jan  1 00:00:00 1970
+Return-Path: <xen-devel-bounces@lists.xenproject.org>
+X-Spam-Checker-Version: SpamAssassin 3.4.0 (2014-02-07) on
+	aws-us-west-2-korg-lkml-1.web.codeaurora.org
+Received: from lists.xenproject.org (lists.xenproject.org [192.237.175.120])
+	(using TLSv1.2 with cipher ECDHE-RSA-AES256-GCM-SHA384 (256/256 bits))
+	(No client certificate requested)
+	by smtp.lore.kernel.org (Postfix) with ESMTPS id 8745CCDB479
+	for <xen-devel@archiver.kernel.org>; Thu, 25 Jun 2026 13:05:25 +0000 (UTC)
+Received: from list by lists.xenproject.org with outflank-mailman.1345602.1604416 (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wcjlK-0006xM-2t; Thu, 25 Jun 2026 13:04:58 +0000
+X-Outflank-Mailman: Message body and most headers restored to incoming version
+Received: by outflank-mailman (output) from mailman id 1345602.1604416; Thu, 25 Jun 2026 13:04:58 +0000
+Received: from localhost ([127.0.0.1] helo=lists.xenproject.org)
+	by lists.xenproject.org with esmtp (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wcjlJ-0006xF-W0; Thu, 25 Jun 2026 13:04:57 +0000
+Received: by outflank-mailman (input) for mailman id 1345602;
+ Thu, 25 Jun 2026 13:04:56 +0000
+Received: from mx.expurgate.net ([195.190.135.20])
+ by lists.xenproject.org with esmtp (Exim 4.92)
+ (envelope-from <jbeulich@suse.com>) id 1wcjlI-0006x9-NU
+ for xen-devel@lists.xenproject.org; Thu, 25 Jun 2026 13:04:56 +0000
+Received: from mx.expurgate.net (helo=localhost) by mx.expurgate.net with esmtp
+ id 1wcjlH-00DX5K-L9
+ for xen-devel@lists.xenproject.org; Thu, 25 Jun 2026 15:04:55 +0200
+Received: from [10.42.69.11] (helo=localhost)
+ by localhost with ESMTP (eXpurgate MTA 0.9.1)
+ (envelope-from <jbeulich@suse.com>)
+ id 6a3d2772-bab6-0a2a0a5309dd-0a2a450b80b0-8
+ for <xen-devel@lists.xenproject.org>; Thu, 25 Jun 2026 15:04:55 +0200
+Received: from [209.85.221.41] (helo=mail-wr1-f41.google.com)
+ by tlsNG-42698a.mxtls.expurgate.net with ESMTPS (eXpurgate 4.57.1)
+ (envelope-from <jbeulich@suse.com>)
+ id 6a3d2777-ac48-0a2a450b0019-d155dd29c086-3
+ for <xen-devel@lists.xenproject.org>; Thu, 25 Jun 2026 15:04:55 +0200
+Received: by mail-wr1-f41.google.com with SMTP id
+ ffacd0b85a97d-46cbe01d4b6so1157348f8f.2
+ for <xen-devel@lists.xenproject.org>; Thu, 25 Jun 2026 06:04:55 -0700 (PDT)
+Received: from [10.156.60.236] (ip-037-024-206-209.um08.pools.vodafone-ip.de.
+ [37.24.206.209]) by smtp.gmail.com with ESMTPSA id
+ ffacd0b85a97d-46c2279bc77sm14898952f8f.32.2026.06.25.06.04.54
+ (version=TLS1_3 cipher=TLS_AES_128_GCM_SHA256 bits=128/128);
+ Thu, 25 Jun 2026 06:04:54 -0700 (PDT)
+X-BeenThere: xen-devel@lists.xenproject.org
+List-Id: Xen developer discussion <xen-devel.lists.xenproject.org>
+List-Unsubscribe: <https://lists.xenproject.org/mailman/options/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=unsubscribe>
+List-Post: <mailto:xen-devel@lists.xenproject.org>
+List-Help: <mailto:xen-devel-request@lists.xenproject.org?subject=help>
+List-Subscribe: <https://lists.xenproject.org/mailman/listinfo/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=subscribe>
+Errors-To: xen-devel-bounces@lists.xenproject.org
+Precedence: list
+Sender: "Xen-devel" <xen-devel-bounces@lists.xenproject.org>
+Authentication-Results: eu.smtp.expurgate.cloud; dkim=pass header.s=google header.d=suse.com header.i="@suse.com" header.h="Content-Transfer-Encoding:In-Reply-To:Autocrypt:From:Content-Language:References:Cc:To:Subject:User-Agent:MIME-Version:Date:Message-ID"
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=suse.com; s=google; t=1782392695; x=1782997495; darn=lists.xenproject.org;
+        h=content-transfer-encoding:in-reply-to:autocrypt:from
+         :content-language:references:cc:to:subject:user-agent:mime-version
+         :date:message-id:from:to:cc:subject:date:message-id:reply-to;
+        bh=FVIPN8pSxaqWMTYph54uStLbwSMZzn3jochsu9C1I+8=;
+        b=eXZ+ZNF86HdwXlYeBYd8TTcHev9u5BS3WkwW9ZFv8Img8TUFp01uOBnBA0eaZ7g2vV
+         WwmHaxDD9cAf5JrtIcBPUFkfQimBqQCduJt4QglJv6PQe2nE+JX2UgnTsB17Zq47mb/s
+         DUFSpn2iBqRhzH1HlWV197qMIg5L3mMh1NuQc+ksNUhz8KKkgHKgQjFSgGBqWIY+8XPQ
+         cFY2h/+oRO+FPxHcS9f14yRdfMyrwP0gQ8pk0IwV0zmmDUnruw6tZWKfZpbJQsExnCVY
+         bNaqz3y8Rwlh2AXMPvAzHhnhK6sAFv6X9V85w3xQivONe29hLhbtv10pcACGaKk5IZ6W
+         QA6A==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20251104; t=1782392695; x=1782997495;
+        h=content-transfer-encoding:in-reply-to:autocrypt:from
+         :content-language:references:cc:to:subject:user-agent:mime-version
+         :date:message-id:x-gm-gg:x-gm-message-state:from:to:cc:subject:date
+         :message-id:reply-to;
+        bh=FVIPN8pSxaqWMTYph54uStLbwSMZzn3jochsu9C1I+8=;
+        b=S5EFDaPM5GU9ylmJ65Bp7NixawJS2mGf0XdKvwPeV6klMYQd+RYfee4YCHEHGa4Xel
+         0sk79SPo1fvT/y2sReUirr9BliBuskx2LzTEC5h3QBRvUFe0ZB2NKhfJMpNBYidvf2sR
+         12O0C2tsWSWC4vsRZDttkMEuIl8bNnHipFurEHJYx+aAy4sqXoOoO46KKrCN1bZXV9xs
+         MaOadEKbmb9QYi9/1bFPB1JSF0jGN3Ufv+ynNUg3T7+wg7W04RtBp46J6bQmxyGiXDdN
+         sxjjlW4OAf4LByYJe0MXNnz9HiMzKWLzgMGepDWekqqx1V0n2nhzHEjJ8c1BS6/2omMR
+         /fUA==
+X-Forwarded-Encrypted: i=1; AHgh+RoiAGi34LZEwpqrtrpYD77YwIDdYom/RAkAMLYHZHi1xlrldCT/4Nvnx+eG7N6CaKRSSYvog997+NU=@lists.xenproject.org
+X-Gm-Message-State: AOJu0YzcC6UBPaR3c7o580N3hyRW28OaBbPSzgcSQg2Mrfu/8x9UVwmP
+	6ef6YvdLm00PxZCT2hYG+mBcNpxTDyQl5OJ5Hr/qxjFOeEVq5EOQ5AYDS+9UKq+KQQ==
+X-Gm-Gg: AfdE7clsE690qdNby0OD/Kd/CfGE5TRlOldU+WlxNNJbPyIriIm4gYY5+W7lc+zub4h
+	p6wvSkF804YckoDLdrB4CVm0RITRZvi4xGhuXCnvL2dGPpDYdsbvV/tA/s+sIdIDPSd0MbJmWif
+	w19vJ2c7bT0KlsBqGpExxewe7p8ML4/N9n9zpn+njOR/8v3B4wjOwT6l1FmM2k5BSANVaVwV9y2
+	daG5wtinEaOj3XCvv8fhe0Mc7Zs2t3BoT5Jiwxn+5VPhXu96QqTZebyQgsXVombOT8WcnBDy+wZ
+	8n9aXvEDfECW9Wz7rizxHSSB3HKUCtRjKhXQPaqCysyz4DP2pBz8NbvdFyPXp1vfY5jIPjA0Y/+
+	9T3zanZTVuZBkrRdO67s9Cw781726H9ddMA/4gclGNAMQTzQOMqC6R1JSANzRF+OfXmzY/mGQ+a
+	ZfdAKgZsIsOeqc6Sg/5i4AQEraqDysl1HwUVaVr5uvOchi5dC8B0Q/wBCnNP3rI+9XXKh6+R83m
+	c7s
+X-Received: by 2002:a05:6000:29d2:b0:46d:d5da:f0aa with SMTP id ffacd0b85a97d-46dd5daf1ffmr2580001f8f.45.1782392694757;
+        Thu, 25 Jun 2026 06:04:54 -0700 (PDT)
+Message-ID: <ca45cbd3-8f39-4017-b2f9-e69b8a708188@suse.com>
+Date: Thu, 25 Jun 2026 15:04:53 +0200
+MIME-Version: 1.0
+User-Agent: Mozilla Thunderbird
+Subject: Re: [PATCH v7 1/3] xen/mm: Introduce per-node free page counter
+To: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+Cc: Andrew Cooper <andrew.cooper3@citrix.com>,
+ Anthony PERARD <anthony.perard@vates.tech>,
+ Michal Orzel <michal.orzel@amd.com>, Julien Grall <julien@xen.org>,
+ =?UTF-8?Q?Roger_Pau_Monn=C3=A9?= <roger.pau@citrix.com>,
+ Stefano Stabellini <sstabellini@kernel.org>,
+ Alejandro Vallejo <agarciav@amd.com>, xen-devel@lists.xenproject.org
+References: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+ <a0b83b0781319009c3862389469dc59db59e0b29.1778272036.git.bernhard.kaindl@citrix.com>
+Content-Language: en-US
+From: Jan Beulich <jbeulich@suse.com>
+Autocrypt: addr=jbeulich@suse.com; keydata=
+ xsDiBFk3nEQRBADAEaSw6zC/EJkiwGPXbWtPxl2xCdSoeepS07jW8UgcHNurfHvUzogEq5xk
+ hu507c3BarVjyWCJOylMNR98Yd8VqD9UfmX0Hb8/BrA+Hl6/DB/eqGptrf4BSRwcZQM32aZK
+ 7Pj2XbGWIUrZrd70x1eAP9QE3P79Y2oLrsCgbZJfEwCgvz9JjGmQqQkRiTVzlZVCJYcyGGsD
+ /0tbFCzD2h20ahe8rC1gbb3K3qk+LpBtvjBu1RY9drYk0NymiGbJWZgab6t1jM7sk2vuf0Py
+ O9Hf9XBmK0uE9IgMaiCpc32XV9oASz6UJebwkX+zF2jG5I1BfnO9g7KlotcA/v5ClMjgo6Gl
+ MDY4HxoSRu3i1cqqSDtVlt+AOVBJBACrZcnHAUSuCXBPy0jOlBhxPqRWv6ND4c9PH1xjQ3NP
+ nxJuMBS8rnNg22uyfAgmBKNLpLgAGVRMZGaGoJObGf72s6TeIqKJo/LtggAS9qAUiuKVnygo
+ 3wjfkS9A3DRO+SpU7JqWdsveeIQyeyEJ/8PTowmSQLakF+3fote9ybzd880fSmFuIEJldWxp
+ Y2ggPGpiZXVsaWNoQHN1c2UuY29tPsJgBBMRAgAgBQJZN5xEAhsDBgsJCAcDAgQVAggDBBYC
+ AwECHgECF4AACgkQoDSui/t3IH4J+wCfQ5jHdEjCRHj23O/5ttg9r9OIruwAn3103WUITZee
+ e7Sbg12UgcQ5lv7SzsFNBFk3nEQQCACCuTjCjFOUdi5Nm244F+78kLghRcin/awv+IrTcIWF
+ hUpSs1Y91iQQ7KItirz5uwCPlwejSJDQJLIS+QtJHaXDXeV6NI0Uef1hP20+y8qydDiVkv6l
+ IreXjTb7DvksRgJNvCkWtYnlS3mYvQ9NzS9PhyALWbXnH6sIJd2O9lKS1Mrfq+y0IXCP10eS
+ FFGg+Av3IQeFatkJAyju0PPthyTqxSI4lZYuJVPknzgaeuJv/2NccrPvmeDg6Coe7ZIeQ8Yj
+ t0ARxu2xytAkkLCel1Lz1WLmwLstV30g80nkgZf/wr+/BXJW/oIvRlonUkxv+IbBM3dX2OV8
+ AmRv1ySWPTP7AAMFB/9PQK/VtlNUJvg8GXj9ootzrteGfVZVVT4XBJkfwBcpC/XcPzldjv+3
+ HYudvpdNK3lLujXeA5fLOH+Z/G9WBc5pFVSMocI71I8bT8lIAzreg0WvkWg5V2WZsUMlnDL9
+ mpwIGFhlbM3gfDMs7MPMu8YQRFVdUvtSpaAs8OFfGQ0ia3LGZcjA6Ik2+xcqscEJzNH+qh8V
+ m5jjp28yZgaqTaRbg3M/+MTbMpicpZuqF4rnB0AQD12/3BNWDR6bmh+EkYSMcEIpQmBM51qM
+ EKYTQGybRCjpnKHGOxG0rfFY1085mBDZCH5Kx0cl0HVJuQKC+dV2ZY5AqjcKwAxpE75MLFkr
+ wkkEGBECAAkFAlk3nEQCGwwACgkQoDSui/t3IH7nnwCfcJWUDUFKdCsBH/E5d+0ZnMQi+G0A
+ nAuWpQkjM1ASeQwSHEeAWPgskBQL
+In-Reply-To: <a0b83b0781319009c3862389469dc59db59e0b29.1778272036.git.bernhard.kaindl@citrix.com>
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+X-purgate-ID: tlsNG-42698a/1782392695-A4F2E220-207EA23B/0/0
+X-purgate-type: clean
+X-purgate-size: 3045
+
+On 08.05.2026 22:27, Bernhard Kaindl wrote:
+> From: Alejandro Vallejo <alejandro.vallejo@cloud.com>
+> 
+> Add node_avail_pages[], updated under heap_lock in sync with
+> avail[node][zone] to cache the per-node sum of free pages.
+> 
+> Use it in avail_node_heap_pages() to avoid summing all zones on each
+> call. Guard it with nodeid < MAX_NUMNODES and node_online(nodeid).
+> 
+> Signed-off-by: Alejandro Vallejo <alejandro.vallejo@cloud.com>
+> Signed-off-by: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+> ---
+> This patch was originally sent by Alejandro Vallejo:
+> https://lists.xenproject.org/archives/html/xen-devel/2025-03/msg01130.html
+> 
+> I use node_avail_pages[] in avail_node_heap_pages() as an optimisation.
+> 
+> Verification of the changes:
+> 
+> 1. node_avail_pages[node] is updated whenever avail[node][zone] changes,
+>    so the two remain in sync.
+> 
+> 2. avail_node_heap_pages() previously summed all zones of a node and now
+>    returns node_avail_pages[node], so the same free buddy pages are
+>    counted.
+> 
+> 3. avail_node_heap_pages() returns 0 for offline nodes and for nodes
+>    >= MAX_NUMNODES as before.
+> 
+> 4. avail_node_heap_pages(-1) returned the sum from all nodes, equal
+>    to total_avail_pages, but this is not used by current callers.
+>    avail_heap_pages(z, z, -1) is used by other callers for that instead.
+>    To avoid dead code, a check for -1 to implement this is not added.
+> 
+> Update locations:
+> 
+> - free_heap_pages() increments node_avail_pages[node] alongside
+>   avail[node][zone] when pages are freed, including during heap
+>   initialisation.
+> 
+> - alloc_heap_pages() decrements node_avail_pages[node] alongside
+>   avail[node][zone] when pages are allocated.
+> 
+> - reserve_offlined_page() decrements node_avail_pages[node] alongside
+>   avail[node][zone] when pages are offlined.
+> 
+> Colored pages do not go through the buddy allocator.
+> Since they do not update avail[node][zone], they are
+> not reflected in node_avail_pages[node] either.
+> 
+> N.B. Current callers already iterate over online nodes only.
+> 
+> Changes since v6:
+> - Preserved the 0 return for offline nodes and nodes >= MAX_NUMNODES.
+
+Hard to identify what v6 was (and who, if anyone, asked for the change) when,
+afaict, the patch subject changed.
+
+Reviewed-by: Jan Beulich <jbeulich@suse.com>
+with ...
+
+> @@ -2831,7 +2837,9 @@ unsigned long avail_domheap_pages_region(
+>  
+>  unsigned long avail_node_heap_pages(unsigned int nodeid)
+>  {
+> -    return avail_heap_pages(MEMZONE_XEN, NR_ZONES -1, nodeid);
+> +    if ( nodeid < MAX_NUMNODES && node_online(nodeid) )
+> +        return node_avail_pages[nodeid];
+> +    return 0;
+>  }
+
+... a blank line inserted ahead of the "main" (not really here, just by its
+indentation) return.
+
+One other remark: With the function called from just a sysctl and a
+keyhandler, the direct array access is likely fine. Generally it would
+want to be array_access_nospec() though, when accessible from guests.
+
+Jan
+
+
+From mboxrd@z Thu Jan  1 00:00:00 1970
+Return-Path: <xen-devel-bounces@lists.xenproject.org>
+X-Spam-Checker-Version: SpamAssassin 3.4.0 (2014-02-07) on
+	aws-us-west-2-korg-lkml-1.web.codeaurora.org
+Received: from lists.xenproject.org (lists.xenproject.org [192.237.175.120])
+	(using TLSv1.2 with cipher ECDHE-RSA-AES256-GCM-SHA384 (256/256 bits))
+	(No client certificate requested)
+	by smtp.lore.kernel.org (Postfix) with ESMTPS id 42C41CDE007
+	for <xen-devel@archiver.kernel.org>; Thu, 25 Jun 2026 13:31:17 +0000 (UTC)
+Received: from list by lists.xenproject.org with outflank-mailman.1345633.1604444 (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wckAU-0004UG-B5; Thu, 25 Jun 2026 13:30:58 +0000
+X-Outflank-Mailman: Message body and most headers restored to incoming version
+Received: by outflank-mailman (output) from mailman id 1345633.1604444; Thu, 25 Jun 2026 13:30:58 +0000
+Received: from localhost ([127.0.0.1] helo=lists.xenproject.org)
+	by lists.xenproject.org with esmtp (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1wckAU-0004U9-6d; Thu, 25 Jun 2026 13:30:58 +0000
+Received: by outflank-mailman (input) for mailman id 1345633;
+ Thu, 25 Jun 2026 13:30:57 +0000
+Received: from mx.expurgate.net ([195.190.135.10])
+ by lists.xenproject.org with esmtp (Exim 4.92)
+ (envelope-from <jbeulich@suse.com>) id 1wckAT-0004U3-8C
+ for xen-devel@lists.xenproject.org; Thu, 25 Jun 2026 13:30:57 +0000
+Received: from mx.expurgate.net (helo=localhost) by mx.expurgate.net with esmtp
+ id 1wckAS-003wvN-Kh
+ for xen-devel@lists.xenproject.org; Thu, 25 Jun 2026 15:30:56 +0200
+Received: from [10.42.69.3] (helo=localhost)
+ by localhost with ESMTP (eXpurgate MTA 0.9.1)
+ (envelope-from <jbeulich@suse.com>)
+ id 6a3d2d8a-2eae-0a2a0a5409dd-0a2a4503c326-22
+ for <xen-devel@lists.xenproject.org>; Thu, 25 Jun 2026 15:30:56 +0200
+Received: from [209.85.128.54] (helo=mail-wm1-f54.google.com)
+ by tlsNG-33051d.mxtls.expurgate.net with ESMTPS (eXpurgate 4.57.1)
+ (envelope-from <jbeulich@suse.com>)
+ id 6a3d2d8f-ec1a-0a2a45030019-d1558036d95a-3
+ for <xen-devel@lists.xenproject.org>; Thu, 25 Jun 2026 15:30:56 +0200
+Received: by mail-wm1-f54.google.com with SMTP id
+ 5b1f17b1804b1-490b3637b90so15061535e9.3
+ for <xen-devel@lists.xenproject.org>; Thu, 25 Jun 2026 06:30:56 -0700 (PDT)
+Received: from [10.156.60.236] (ip-037-024-206-209.um08.pools.vodafone-ip.de.
+ [37.24.206.209]) by smtp.gmail.com with ESMTPSA id
+ 5b1f17b1804b1-49264082426sm77120365e9.9.2026.06.25.06.30.54
+ (version=TLS1_3 cipher=TLS_AES_128_GCM_SHA256 bits=128/128);
+ Thu, 25 Jun 2026 06:30:54 -0700 (PDT)
+X-BeenThere: xen-devel@lists.xenproject.org
+List-Id: Xen developer discussion <xen-devel.lists.xenproject.org>
+List-Unsubscribe: <https://lists.xenproject.org/mailman/options/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=unsubscribe>
+List-Post: <mailto:xen-devel@lists.xenproject.org>
+List-Help: <mailto:xen-devel-request@lists.xenproject.org?subject=help>
+List-Subscribe: <https://lists.xenproject.org/mailman/listinfo/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=subscribe>
+Errors-To: xen-devel-bounces@lists.xenproject.org
+Precedence: list
+Sender: "Xen-devel" <xen-devel-bounces@lists.xenproject.org>
+Authentication-Results: eu.smtp.expurgate.cloud; dkim=pass header.s=google header.d=suse.com header.i="@suse.com" header.h="Content-Transfer-Encoding:In-Reply-To:Autocrypt:From:Content-Language:References:Cc:To:Subject:User-Agent:MIME-Version:Date:Message-ID"
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=suse.com; s=google; t=1782394255; x=1782999055; darn=lists.xenproject.org;
+        h=content-transfer-encoding:in-reply-to:autocrypt:from
+         :content-language:references:cc:to:subject:user-agent:mime-version
+         :date:message-id:from:to:cc:subject:date:message-id:reply-to;
+        bh=70o//AS/ueYIBHfWCHjMu1YWzzj9a1OdpJnyPS470L4=;
+        b=YHwFvWbvxCQFN5qavULP+zcQeNzkeIJXySnASmkVdtzJeULBbk/VFMhdCT2ZVhwHpy
+         0ZC1H1zBEcPEjK4Q61IZHNsEkGeUT3Ue8ZJjCbE3nFnAcmKkTdfkHP+oJqc2Ffu9tPoU
+         nkjfsz5ziOvzVS+9PDV9zsZQ+tenu2Q+zEqF53p13f5WfBgCPYIwIkgGRCugRigiSs1d
+         40QZQ5aT66DYE036KrQ7LaYZMV6tug3h/rMt8aqbw8A92u8GSefG8bmi52j/mG+2JEqd
+         N22F2mvrp5E5VrenO4M7soiI8TjLAPbhn4wiIj29mhmaSb1A4uKCwmlU1EF+NMP8m/gR
+         +pOQ==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20251104; t=1782394255; x=1782999055;
+        h=content-transfer-encoding:in-reply-to:autocrypt:from
+         :content-language:references:cc:to:subject:user-agent:mime-version
+         :date:message-id:x-gm-gg:x-gm-message-state:from:to:cc:subject:date
+         :message-id:reply-to;
+        bh=70o//AS/ueYIBHfWCHjMu1YWzzj9a1OdpJnyPS470L4=;
+        b=I2O9fzJU6eU+lArFKsW8x2+ACUlx8aTbeU7Xo2fASF+NJE2WZ5IiLYiDP26HB4hYv4
+         pXhLFv8wtqaz3P7JA3hrb88g9ayt9r/B+93hbKcQhnw/1QYFVYhmozD7iF1m9Dmlx6/k
+         DQlTp5S1EhN8qtZYvDj1CTdv93UdvrHN2UFVB3RqKw1a/NJGh7iLlmgVBsP+jICNuf1n
+         IR/bkq+zxTyG/l3TACLbLH8HNZPof8+S+5xzfnxyrnruiueHpdWg2oLGSD0Sz42IwGen
+         iCr1z5G/qA8wl9kIYyO1CHlosTfWY79VxgrUXMpjogUJq8vslXYDiYYcUghli+ySkIOB
+         H/Eg==
+X-Forwarded-Encrypted: i=1; AFNElJ8XPIjkWD2WCNfGzvOaYUttgRBnC06CWmLMvK69C8YhRy7q0g+ZaSTWJKLTKJNGnsK1uIEvbl4O6bo=@lists.xenproject.org
+X-Gm-Message-State: AOJu0Ywk5CM80fbhxlZSB9v9G9h45lV65EX11cOD4xY6gUlZOvUR2LMg
+	1npvV6hq01yKtppkohmQweisC2JV0OqQ7hYLg9L3XpS41RdkpPhJU+oZF74hko5GCA==
+X-Gm-Gg: AfdE7cmAXiA1ot8QBFIYeaKmjtCwyQfLCfmMuz2bpkQySPqhtzjD/c8h1YwQ2rIZhub
+	7v5/NjCNPBGxVayfAJXXPJikyGGET1GqCbrGUpu99t2uAYQU0oyZ49gRLG5yeBkIXa4qtpx5e9U
+	MlsLdHZLoFIGMroxosWqGD/vo8VP69vZLWPBA45Sb/hvM+Y8OmebwH85i4biVi/HiPd9w31Hwo5
+	PiIBwQ1S5AsZFXllG2/KhEbTYkPI0MZaq2TZQMv7M1JGMWRoBevB/giBD/BntaA/bJWRep0zRJG
+	FcCaoSGfYQmuwxl9eDzjfdt72+QQGm4ApvndOr/hJqpQCs8YEIvJP498n/EM4v1RvcvnSWZEqSH
+	s5j4irrtaLDh7t1kfFehFDC0E5m3XRyZedu47bd2Ih4N6/AGyb1q1A8DOpt8HmKOSy6xs+eJATW
+	x2Kg6EHa9dRmo5qiIoQ5ZplfPuSEvOjAWF8JSTNWZW/6b04g06L+ytJ29Dg/m3XqjSCNfaExyAD
+	sWG
+X-Received: by 2002:a05:600c:6b70:b0:490:b06a:649e with SMTP id 5b1f17b1804b1-49266893253mr23158155e9.25.1782394255316;
+        Thu, 25 Jun 2026 06:30:55 -0700 (PDT)
+Message-ID: <28707464-ecd0-40a5-96e2-0afd3d33f34d@suse.com>
+Date: Thu, 25 Jun 2026 15:30:53 +0200
+MIME-Version: 1.0
+User-Agent: Mozilla Thunderbird
+Subject: Re: [PATCH v7 2/3] xen/mm: Introduce NUMA-aware memory claim sets
+To: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+Cc: Anthony PERARD <anthony.perard@vates.tech>,
+ Juergen Gross <jgross@suse.com>, Andrew Cooper <andrew.cooper3@citrix.com>,
+ Michal Orzel <michal.orzel@amd.com>, Julien Grall <julien@xen.org>,
+ =?UTF-8?Q?Roger_Pau_Monn=C3=A9?= <roger.pau@citrix.com>,
+ Stefano Stabellini <sstabellini@kernel.org>,
+ "Daniel P. Smith" <dpsmith@apertussolutions.com>,
+ xen-devel@lists.xenproject.org
+References: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+ <ddcc692d642aaf6dec84dcdb17ebaf2b8c09c7b0.1778272036.git.bernhard.kaindl@citrix.com>
+Content-Language: en-US
+From: Jan Beulich <jbeulich@suse.com>
+Autocrypt: addr=jbeulich@suse.com; keydata=
+ xsDiBFk3nEQRBADAEaSw6zC/EJkiwGPXbWtPxl2xCdSoeepS07jW8UgcHNurfHvUzogEq5xk
+ hu507c3BarVjyWCJOylMNR98Yd8VqD9UfmX0Hb8/BrA+Hl6/DB/eqGptrf4BSRwcZQM32aZK
+ 7Pj2XbGWIUrZrd70x1eAP9QE3P79Y2oLrsCgbZJfEwCgvz9JjGmQqQkRiTVzlZVCJYcyGGsD
+ /0tbFCzD2h20ahe8rC1gbb3K3qk+LpBtvjBu1RY9drYk0NymiGbJWZgab6t1jM7sk2vuf0Py
+ O9Hf9XBmK0uE9IgMaiCpc32XV9oASz6UJebwkX+zF2jG5I1BfnO9g7KlotcA/v5ClMjgo6Gl
+ MDY4HxoSRu3i1cqqSDtVlt+AOVBJBACrZcnHAUSuCXBPy0jOlBhxPqRWv6ND4c9PH1xjQ3NP
+ nxJuMBS8rnNg22uyfAgmBKNLpLgAGVRMZGaGoJObGf72s6TeIqKJo/LtggAS9qAUiuKVnygo
+ 3wjfkS9A3DRO+SpU7JqWdsveeIQyeyEJ/8PTowmSQLakF+3fote9ybzd880fSmFuIEJldWxp
+ Y2ggPGpiZXVsaWNoQHN1c2UuY29tPsJgBBMRAgAgBQJZN5xEAhsDBgsJCAcDAgQVAggDBBYC
+ AwECHgECF4AACgkQoDSui/t3IH4J+wCfQ5jHdEjCRHj23O/5ttg9r9OIruwAn3103WUITZee
+ e7Sbg12UgcQ5lv7SzsFNBFk3nEQQCACCuTjCjFOUdi5Nm244F+78kLghRcin/awv+IrTcIWF
+ hUpSs1Y91iQQ7KItirz5uwCPlwejSJDQJLIS+QtJHaXDXeV6NI0Uef1hP20+y8qydDiVkv6l
+ IreXjTb7DvksRgJNvCkWtYnlS3mYvQ9NzS9PhyALWbXnH6sIJd2O9lKS1Mrfq+y0IXCP10eS
+ FFGg+Av3IQeFatkJAyju0PPthyTqxSI4lZYuJVPknzgaeuJv/2NccrPvmeDg6Coe7ZIeQ8Yj
+ t0ARxu2xytAkkLCel1Lz1WLmwLstV30g80nkgZf/wr+/BXJW/oIvRlonUkxv+IbBM3dX2OV8
+ AmRv1ySWPTP7AAMFB/9PQK/VtlNUJvg8GXj9ootzrteGfVZVVT4XBJkfwBcpC/XcPzldjv+3
+ HYudvpdNK3lLujXeA5fLOH+Z/G9WBc5pFVSMocI71I8bT8lIAzreg0WvkWg5V2WZsUMlnDL9
+ mpwIGFhlbM3gfDMs7MPMu8YQRFVdUvtSpaAs8OFfGQ0ia3LGZcjA6Ik2+xcqscEJzNH+qh8V
+ m5jjp28yZgaqTaRbg3M/+MTbMpicpZuqF4rnB0AQD12/3BNWDR6bmh+EkYSMcEIpQmBM51qM
+ EKYTQGybRCjpnKHGOxG0rfFY1085mBDZCH5Kx0cl0HVJuQKC+dV2ZY5AqjcKwAxpE75MLFkr
+ wkkEGBECAAkFAlk3nEQCGwwACgkQoDSui/t3IH7nnwCfcJWUDUFKdCsBH/E5d+0ZnMQi+G0A
+ nAuWpQkjM1ASeQwSHEeAWPgskBQL
+In-Reply-To: <ddcc692d642aaf6dec84dcdb17ebaf2b8c09c7b0.1778272036.git.bernhard.kaindl@citrix.com>
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+X-purgate-ID: tlsNG-33051d/1782394256-B61315D1-B4E21B97/0/0
+X-purgate-type: clean
+X-purgate-size: 9202
+
+On 08.05.2026 22:27, Bernhard Kaindl wrote:
+> This commit extends Xen's memory claim design to support installing claim
+> sets spanning multiple NUMA nodes atomically. As Roger Pau Monné suggested:
+> 
+>   Ideally, we would need to introduce a new hypercall that allows
+>   making claims from multiple nodes in a single locked region, as to
+>   ensure success or failure in an atomic way.
+> 
+> A claim set can contain multiple node-specific claims and a host-wide
+> claim for memory that may come from any NUMA node. The new domctl
+> installs the full claim set atomically, and the allocator is updated
+> so that claim checks and claim consumption follow the new semantics.
+> 
+> This adds:
+> 
+> 1. installing multi-node claim sets atomically,
+> 2. protecting claimed pages from other claim requests and allocations, and
+> 3. redeeming held claims when satisfying allocations.
+> 
+> Legacy XENMEM_claim_pages behaviour is preserved; the interface is
+> deprecated and superseded by XEN_DOMCTL_claim_memory.
+> 
+> Signed-off-by: Roger Pau Monné <roger.pau@citrix.com>
+> Signed-off-by: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+> 
+> ---
+> The v7 design document submitted ahead of this series may help with review.
+> It explains the background, design rationale, and implementation details.
+> 
+> Rendered version: https://xen.kaindl.dev/claims-v7-design/designs/claims
+> 
+> Many thanks to everyone who contributed to the earlier work and review:
+> especially Roger Pau Monné, Alejandro Vallejo, Jan Beulich, Andrew Cooper,
+> Marcus Granado, and Edwin Török.
+> 
+> Thanks,
+> Bernhard
+> ---
+>  tools/include/xenctrl.h             |  11 +
+>  tools/libs/ctrl/xc_domain.c         |  28 ++
+>  xen/common/domain.c                 |   5 +-
+>  xen/common/domctl.c                 |  57 ++++
+>  xen/common/memory.c                 |   5 +-
+>  xen/common/page_alloc.c             | 410 +++++++++++++++++++++++-----
+>  xen/include/public/domctl.h         |  38 +++
+>  xen/include/public/memory.h         |   2 +
+>  xen/include/xen/mm.h                |   6 +-
+>  xen/include/xen/sched.h             |   4 +
+>  xen/xsm/flask/hooks.c               |   1 +
+>  xen/xsm/flask/policy/access_vectors |   1 +
+>  12 files changed, 493 insertions(+), 75 deletions(-)
+
+And there's no way to split this some? I'll only do some light review for now.
+
+> --- a/xen/common/domain.c
+> +++ b/xen/common/domain.c
+> @@ -1319,7 +1319,10 @@ int domain_kill(struct domain *d)
+>          rspin_barrier(&d->domain_lock);
+>          argo_destroy(d);
+>          vnuma_destroy(d->vnuma);
+> -        domain_set_outstanding_pages(d, 0);
+> +        /* Release all outstanding claims of the domain. */
+> +        domain_set_claim_entries(d, 1, &(xen_memory_claim_t){
+> +            .target = XEN_DOMCTL_CLAIM_MEMORY_HOST, .pages = 0,
+> +        });
+
+This is pretty badly formatted. Maybe
+
+        domain_set_claim_entries(
+            d, 1,
+            &(xen_memory_claim_t){
+                .target = XEN_DOMCTL_CLAIM_MEMORY_HOST, .pages = 0,
+            });
+
+? (Applies elsewhere as well, obviously.)
+
+Whether the .pages field needs explicitly mentioning is questionable.
+
+> --- a/xen/common/domctl.c
+> +++ b/xen/common/domctl.c
+> @@ -51,6 +51,57 @@ static int xenctl_bitmap_to_nodemask(nodemask_t *nodemask,
+>                                     MAX_NUMNODES);
+>  }
+>  
+> +/* Set or get memory claims for a domain. */
+> +static int claim_memory(struct domain *d,
+> +                        struct xen_domctl_claim_memory *uinfo, bool *copyback)
+> +{
+> +    xen_memory_claim_t *entries;
+> +    int rc = -EFAULT;
+> +
+> +    /* Reject LLC coloring; alloc_color_heap_page() does not handle claims. */
+> +    if ( llc_coloring_enabled )
+> +        return -EOPNOTSUPP;
+> +
+> +    switch ( uinfo->mode )
+> +    {
+> +    case XEN_DOMCTL_CLAIM_MEMORY_SET:
+> +        if ( !uinfo->nr_entries )
+> +            return -EINVAL;
+> +        if ( uinfo->nr_entries > MAX_NUMNODES + 1 )
+
+Why's MAX_NUMNODES and MAX_NUMNODES + 1 as an input permitted?
+
+> +            return -E2BIG;
+> +        break;
+> +    case XEN_DOMCTL_CLAIM_MEMORY_GET:
+> +        if ( uinfo->nr_entries > MAX_NUMNODES + 1 )
+> +            uinfo->nr_entries = MAX_NUMNODES + 1;
+> +        break;
+> +    default:
+> +        return -EOPNOTSUPP;
+> +    }
+
+Here and elsewhere - blank lines please between non-fall-through case blocks.
+
+> +    if ( d->is_dying )
+> +        return -ESRCH;
+> +
+> +    entries = xmalloc_array(xen_memory_claim_t, uinfo->nr_entries);
+
+Better xzalloc_array() (really xvzalloc_array()) seeing ...
+
+> +    if ( entries == NULL )
+> +        return -ENOMEM;
+> +
+> +    switch ( uinfo->mode )
+> +    {
+> +    case XEN_DOMCTL_CLAIM_MEMORY_SET:
+> +        if ( !copy_from_guest(entries, uinfo->claim_set, uinfo->nr_entries) )
+> +            rc = domain_set_claim_entries(d, uinfo->nr_entries, entries);
+> +        break;
+> +    case XEN_DOMCTL_CLAIM_MEMORY_GET:
+> +        rc = domain_get_claim_entries(d, &uinfo->nr_entries, entries);
+> +        *copyback = true;
+> +        if ( !rc && copy_to_guest(uinfo->claim_set, entries,
+> +                                  uinfo->nr_entries) )
+
+... this copy-out.
+
+> +            rc = -EFAULT;
+> +        break;
+> +    }
+
+Missing default:.
+
+> @@ -865,6 +916,12 @@ long do_domctl(XEN_GUEST_HANDLE_PARAM(xen_domctl_t) u_domctl)
+>              copyback = true;
+>          break;
+>  
+> +    case XEN_DOMCTL_claim_memory:
+> +        ret = xsm_claim_pages(XSM_PRIV, d);
+
+This and the xsm/flask/hooks.c change will need reworking, to fit the spirit
+of XSA-492.
+
+> --- a/xen/include/public/domctl.h
+> +++ b/xen/include/public/domctl.h
+> @@ -1276,6 +1276,42 @@ struct xen_domctl_get_domain_state {
+>      uint64_t unique_id;      /* Unique domain identifier. */
+>  };
+>  
+> +struct xen_memory_claim {
+> +    uint64_aligned_t pages; /* Number of pages to claim. */
+> +    uint32_t target;        /* NUMA node or special target constant. */
+> +    uint32_t cmd;           /* Reserved, must be zero. */
+
+Why is this named "cmd" when it's reserved?
+
+> +};
+> +typedef struct xen_memory_claim xen_memory_claim_t;
+> +DEFINE_XEN_GUEST_HANDLE(xen_memory_claim_t);
+> +
+> +/* Special claim targets for the target field of xen_memory_claim_t. */
+> +#define XEN_DOMCTL_CLAIM_MEMORY_HOST     0x80000000U /* Host-wide claims. */
+> +#define XEN_DOMCTL_CLAIM_MEMORY_LEGACY   0x40000000U /* Legacy semantics. */
+
+I think the latter should be internal to Xen, and in particular not be
+permitted with this new domctl.
+
+> +/*
+> + * XEN_DOMCTL_claim_memory
+> + *
+> + * Install or query a domain memory claim set. A SET operation replaces the
+> + * existing claim set atomically. Claims are redeemed by later allocations to
+> + * the domain. A SET request whose entries all have pages == 0 releases any
+> + * existing claims.
+> + *
+> + * For GET, callers may pass nr_entries == 0 and claim_set == NULL to query the
+> + * number of records needed. Xen returns -ERANGE and updates nr_entries. If the
+> + * supplied array is too small, Xen returns -ERANGE and updates nr_entries
+> + * without copying partial records.
+> + */
+> +struct xen_domctl_claim_memory {
+> +    /* IN/OUT: Array of struct xen_memory_claim. */
+> +    XEN_GUEST_HANDLE_64(xen_memory_claim_t) claim_set;
+> +    /* IN/OUT: Number of records in the claim_set array. */
+> +    uint32_t nr_entries;
+
+What is IN and what is OUT looks to differ between GET and SET.
+
+> +    /* IN: Operation to perform on the claim set (GET or SET). */
+> +    uint32_t mode;
+> +#define XEN_DOMCTL_CLAIM_MEMORY_SET 0U /* Set the claim set for the domain. */
+> +#define XEN_DOMCTL_CLAIM_MEMORY_GET 1U /* Get the claim set of the domain. */
+> +};
+
+And there's no way to fetch overall claims?
+
+> @@ -131,7 +132,10 @@ int populate_pt_range(unsigned long virt, unsigned long nr_mfns);
+>  /* Claim handling */
+>  unsigned long __must_check domain_adjust_tot_pages(struct domain *d,
+>      long pages);
+> -int domain_set_outstanding_pages(struct domain *d, unsigned long pages);
+> +int domain_set_claim_entries(struct domain *d, uint32_t nr_entries,
+> +                             const struct xen_memory_claim *claim_set);
+> +int domain_get_claim_entries(struct domain *d, uint32_t *nr_entries,
+> +                             struct xen_memory_claim *claim_set);
+
+Please see ./CODING_STYLE as to the use of fixed-width types. In the latter
+case I can see justification, but in the former I can't.
+
+> --- a/xen/include/xen/sched.h
+> +++ b/xen/include/xen/sched.h
+> @@ -419,6 +419,10 @@ struct domain
+>      unsigned int     xenheap_pages;     /* pages allocated from Xen heap */
+>      /* Pages claimed but not possessed, protected by global heap_lock. */
+>      unsigned int     outstanding_pages;
+> +    unsigned int     node_claims;       /* Sum of per-node claims. */
+> +    /* Domain objects use dedicated pages, leaving room for per-node claims. */
+> +    unsigned int     claims[MAX_NUMNODES]; /* Per-NUMA-node claims. */
+
+Potentially too big an array to embed directly here.
+
+Jan
+
+
+From mboxrd@z Thu Jan  1 00:00:00 1970
+Received: from lists.xenproject.org (lists.xenproject.org [192.237.175.120])
+	(using TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits)
+	 key-exchange ECDHE (prime256v1) server-signature ECDSA (prime256v1) server-digest SHA256)
+	(No client certificate requested)
+	by smtp.subspace.kernel.org (Postfix) with ESMTPS id 856F0606A322
+	for <xen-devel@archiver.kernel.org>; Mon,  9 Nov 2026 14:58:19 +0000 (UTC)
+Authentication-Results: smtp.subspace.kernel.org;
+	dkim=pass (2048-bit key, unprotected) header.d=vates.tech header.i=@vates.tech header.a=rsa-sha256 header.s=selector1 header.b=QRDKYxLt
+Received: from list by lists.xenproject.org with outflank-mailman.1480214.1684178 (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1xQQoo-0005Od-DJ; Mon, 09 Nov 2026 14:57:58 +0000
+X-Outflank-Mailman: Message body and most headers restored to incoming version
+Received: by outflank-mailman (output) from mailman id 1480214.1684178; Mon, 09 Nov 2026 14:57:58 +0000
+Received: from localhost ([127.0.0.1] helo=lists.xenproject.org)
+	by lists.xenproject.org with esmtp (Exim 4.92)
+	(envelope-from <xen-devel-bounces@lists.xenproject.org>)
+	id 1xQQoo-0005OW-AT; Mon, 09 Nov 2026 14:57:58 +0000
+Received: by outflank-mailman (input) for mailman id 1480214;
+ Mon, 09 Nov 2026 14:57:57 +0000
+Received: from mx.expurgate.net ([195.190.135.10])
+ by lists.xenproject.org with esmtp (Exim 4.92) (envelope-from
+ <prod-mta-13.8631fc262581453bbf619ec5b2062170.1a1c0d0cd62000403d@swg.vates.tech>)
+ id 1xQQom-0005OF-R1
+ for xen-devel@lists.xenproject.org; Mon, 09 Nov 2026 14:57:57 +0000
+Received: from mx.expurgate.net (helo=localhost) by mx.expurgate.net with esmtp
+ id 1xQQom-004JZs-0t
+ for xen-devel@lists.xenproject.org; Mon, 09 Nov 2026 15:57:56 +0100
+Received: from [10.42.69.9] (helo=localhost)
+ by localhost with ESMTP (eXpurgate MTA 0.9.1) (envelope-from
+ <prod-mta-13.8631fc262581453bbf619ec5b2062170.1a1c0d0cd62000403d@swg.vates.tech>)
+ id 6af1df61-bab6-0a2a0a5309dd-0a2a4509b43c-36
+ for <xen-devel@lists.xenproject.org>; Mon, 09 Nov 2026 15:57:55 +0100
+Received: from [185.255.28.35] (helo=prod-mta-13-02.swg-srv.net)
+ by tlsNG-bad1c0.mxtls.expurgate.net with ESMTPS (eXpurgate 4.57.1)
+ (envelope-from
+ <prod-mta-13.8631fc262581453bbf619ec5b2062170.1a1c0d0cd62000403d@swg.vates.tech>)
+ id 6af1df73-be1a-0a2a45090019-b9ff1c23a087-3
+ for <xen-devel@lists.xenproject.org>; Mon, 09 Nov 2026 15:57:55 +0100
+Received: from mail2.vates.fr ([37.26.189.201] mail2.vates.fr)
+ (Authenticated sender:
+ 8631fc262581453bbf619ec5b2062170/smtp/7773de5a-2839-4720-82ee-e06722ae1d3e)
+ by prod-mta-13-02.swg-srv.net (ZoneMTA - prod-mta-13) with ESMTPSA id
+ 1a1c0d0cd62000403d.007 for <xen-devel@lists.xenproject.org>
+ (version=TLSv1.3 cipher=TLS_AES_256_GCM_SHA384);
+ Mon, 09 Nov 2026 14:57:51 +0000
+Received: from [100.68.94.6] (areims-651-1-80-194.w90-18.abo.wanadoo.fr
+ [90.18.187.194]) (Authenticated sender: baptiste.le-duc)
+ by mail2.vates.fr (Postfix) with ESMTPSA id 1386082191;
+ Mon,  9 Nov 2026 15:57:51 +0100 (CET)
+X-BeenThere: xen-devel@lists.xenproject.org
+List-Id: Xen developer discussion <xen-devel.lists.xenproject.org>
+List-Post: <mailto:xen-devel@lists.xenproject.org>
+List-Help: <mailto:xen-devel-request@lists.xenproject.org?subject=help>
+List-Subscribe: <https://lists.xenproject.org/mailman/listinfo/xen-devel>,
+ <mailto:xen-devel-request@lists.xenproject.org?subject=subscribe>
+Precedence: list
+Sender: "Xen-devel" <xen-devel-bounces@lists.xenproject.org>
+Authentication-Results: eu.smtp.expurgate.cloud; dkim=pass header.s=selector1 header.d=vates.tech header.i="@vates.tech" header.h="From:Subject:Date:Message-ID:To:Cc:MIME-Version:Content-Type:Content-Transfer-Encoding:In-Reply-To:References:Feedback-ID"
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vates.tech;
+ q=dns/txt; s=selector1; bh=o0lfqTwCf1N+PscNT4QvCibY7SxKauPhgfpJ0dhSFm8=;
+ h=from:subject:date:message-id:to:cc:mime-version:content-type:content-transfer-encoding:in-reply-to:references:feedback-id;
+ b=QRDKYxLtKl2nDtA2xh2B/dNSWtqyYGt6uhZw4Kf8PEumrGYJYrix3pTyIt5enCIKwyaCyEQ+I
+ 3uqlKphV06uRrfTDxwLyE+4VkzgLYsQlBJTm2voIjF/KFNGKrHwuUJoF2qeqxKiWXGwQxEFEZZ0
+ Ra+R/vXeGKB9K/ezUWGtzm9vBDmTslrt+N0ENxPEO7qXU4E3bQJvfhBO7f4luDEGW8fWBNBw9eF
+ gyFy5TA8yOPShn39t8limTphpOr8GTL2eXltdyWqLn4BB7aD6v03pJxTwQEZWt0RZALMdeJFcV1
+ gVHBCKi9W9MHCa96vdAOMN8O4/WYH9u0soJFnWBpHI4A==
+X-Zone-Loop: bb6345a7797a1f3564b7693820f405c839dd2a546fde
+x-campaign-type: default
+x-transaction-id: bb7611df-1746-4ca8-93d4-c0b17bdfd913
+x-swg-uid: 01-762b211a-3453-4dcf-869b-5f5af7168dae
+X-Mailer: Sweego
+Message-ID: 
+ <1794236272.8631fc262581453bbf619ec5b2062170.1a1c0d0cd62000403d@vates.tech>
+x-swg-bid: 1794236272.8631fc262581453bbf619ec5b2062170.1a1c0d0cd62000403d
+Feedback-ID: default:8631fc262581453bbf619ec5b2062170:Sweego
+x-campaign-id: default
+x-client-id: 8631fc262581453bbf619ec5b2062170
+X-Archived-By: <archiver.kernel.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+Subject: Re: [PATCH v7 2/3] xen/mm: Introduce NUMA-aware memory claim sets
+From: Baptiste Le Duc <baptiste.le-duc@vates.tech>
+To: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+Cc: xen-devel@lists.xenproject.org, 
+ Anthony PERARD <anthony.perard@vates.tech>, Juergen Gross <jgross@suse.com>, 
+ Andrew Cooper <andrew.cooper3@citrix.com>, 
+ Michal Orzel <michal.orzel@amd.com>, Jan Beulich <jbeulich@suse.com>, 
+ Julien Grall <julien@xen.org>, 
+ =?utf-8?q?Roger_Pau_Monn=C3=A9?= <roger.pau@citrix.com>, 
+ Stefano Stabellini <sstabellini@kernel.org>, 
+ "Daniel P. Smith" <dpsmith@apertussolutions.com>
+In-Reply-To: <ddcc692d642aaf6dec84dcdb17ebaf2b8c09c7b0.1778272036.git.bernhard.kaindl@citrix.com>
+References: <cover.1778272036.git.bernhard.kaindl@citrix.com>
+ <ddcc692d642aaf6dec84dcdb17ebaf2b8c09c7b0.1778272036.git.bernhard.kaindl@citrix.com>
+Date: Mon, 09 Nov 2026 15:57:44 +0100
+X-Developer-Signature: v=1; a=ed25519-sha256; t=1794236265; l=24306;
+ i=baptiste.le-duc@vates.tech; s=20260810; h=from:subject:message-id;
+ bh=MIhhFCBwbx/vqq4f/IiP3pVyiFfFiQ4gWX1AO8OYnvA=;
+ b=v8zj3Ud37pF21cO6gNsNAqFzLx+p4t6v3yCe+LkWUfEtClD+evUXf+KrMTWNOV4yEyA8nXVXe
+ WYBivR0+w+vB1co2h0V+k5Hv3uUv1Wk94aIWwnj8YKuHQOaOdccyqg+
+X-Developer-Key: i=baptiste.le-duc@vates.tech; a=ed25519;
+ pk=N+BbdvMXRzrCuX/ieh4RWodiAKcLNvI+KjflcZ0oXCo=
+X-Bm-Milter-Handled: 4ffbd6c1-ee69-4e1b-aabd-f977039bd3e2
+X-Bm-Transport-Timestamp: 1794236271270
+X-purgate-ID: tlsNG-bad1c0/1794236275-BC6CA034-EC17B86D/0/0
+X-purgate-type: clean
+X-purgate-size: 24306
+X-Spam-Status: No, score=-15.8 required=3.0 tests=BAYES_00,DKIM_SIGNED,
+	DKIM_VALID,DKIM_VALID_AU,HEADER_FROM_DIFFERENT_DOMAINS,
+	INCLUDES_CR_TRAILER,INCLUDES_PATCH,MAILING_LIST_MULTI,SPF_HELO_PASS,
+	SPF_PASS,UNPARSEABLE_RELAY autolearn=ham autolearn_force=no
+	version=4.0.1
+X-Spam-Checker-Version: SpamAssassin 4.0.1 (2024-03-26) on
+	aws-us-west-2-korg-listserv-alma10-1
+
+Hi Bernhard,
+
+Thanks for the patch! At ~500 changed lines it is hard to review in one
+go. Could you split it into smaller patches, ideally under 200 lines
+each? For instance:
+
+  1. domain_{set,get}_claim_entries(), with XENMEM_claim_pages and
+     domain_kill() converted to it,
+  2. per-node claim accounting in the allocator (claimed_pages[],
+     d->claims[], redeeming in alloc_heap_pages()/get_free_buddy()),
+  3. restoring the claim invariants on page offlining,
+  4. the new XEN_DOMCTL_claim_memory (public header, domctl, XSM),
+  5. the xc_domain_claim_memory() wrapper in libxenctrl.
+
+Some comments below :)
+
+> This commit extends Xen's memory claim design to support installing claim
+> sets spanning multiple NUMA nodes atomically. As Roger Pau Monné suggested:
+> 
+>   Ideally, we would need to introduce a new hypercall that allows
+>   making claims from multiple nodes in a single locked region, as to
+>   ensure success or failure in an atomic way.
+> 
+Quoting a mail in the commit message seems unusual in Xen. Credit should
+go in a tag as a Suggested-by trailer, and the motivation could simply be
+stated, e.g.:
+
+  Installing per-node claims one by one is not atomic: a request may
+  succeed on some nodes and fail on others. Introduce a hypercall
+  that installs a set of claims spanning multiple nodes under a single
+  lock, so that it either fully succeeds or fully fails.
+
+> A claim set can contain multiple node-specific claims and a host-wide
+> claim for memory that may come from any NUMA node. The new domctl
+> installs the full claim set atomically, and the allocator is updated
+> so that claim checks and claim consumption follow the new semantics.
+> 
+> This adds:
+> 
+> 1. installing multi-node claim sets atomically,
+> 2. protecting claimed pages from other claim requests and allocations, and
+> 3. redeeming held claims when satisfying allocations.
+
+"redeem" is used throughout the patch (here, in alloc_heap_pages()
+and in the public header) but never defined. Could you add a sentence
+saying what it means? E.g.:
+
+  Redeeming a claim means consuming it through allocation: each page
+  allocated to the domain decreases its claim by one. This differs from
+  releasing a claim, which drops it without any allocation.
+> 
+> Legacy XENMEM_claim_pages behaviour is preserved; the interface is
+> deprecated and superseded by XEN_DOMCTL_claim_memory.
+> 
+> Signed-off-by: Roger Pau Monné <roger.pau@citrix.com>
+> Signed-off-by: Bernhard Kaindl <bernhard.kaindl@citrix.com>
+
+> ---
+> The v7 design document submitted ahead of this series may help with review.
+> It explains the background, design rationale, and implementation details.
+> 
+> Rendered version: https://xen.kaindl.dev/claims-v7-design/designs/claims
+Very useful, thanks!
+> [ ... 44 lines skipped ... ]
+> diff --git a/tools/libs/ctrl/xc_domain.c b/tools/libs/ctrl/xc_domain.c
+> index 01c0669c88..f78e085dd7 100644
+> --- a/tools/libs/ctrl/xc_domain.c
+> +++ b/tools/libs/ctrl/xc_domain.c
+> @@ -1070,6 +1070,34 @@ int xc_domain_remove_from_physmap(xc_interface *xch,
+>      return xc_memory_op(xch, XENMEM_remove_from_physmap, &xrfp, sizeof(xrfp));
+>  }
+>  
+> +/* Set or get memory claims for a domain. */
+
+This comment may not be needed: the function is already documented in
+the header file.
+
+> [ ... 26 lines skipped ... ]
+> +/* XENMEM_claim_pages is deprecated; use xc_domain_claim_memory() instead. */
+
+Shouldn't XENMEM_claim_pages then be formally deprecated, e.g. with a
+warning when it is used? I don't know whether Xen has such a practice,
+but it would notify users without breaking the hypercall ABI.
+
+>  int xc_domain_claim_pages(xc_interface *xch,
+>                                 uint32_t domid,
+>                                 unsigned long nr_pages)
+
+> diff --git a/xen/common/domain.c b/xen/common/domain.c
+> index bb9e210c28..8cb4241b05 100644
+> --- a/xen/common/domain.c
+> +++ b/xen/common/domain.c
+> @@ -1319,7 +1319,10 @@ int domain_kill(struct domain *d)
+>          rspin_barrier(&d->domain_lock);
+>          argo_destroy(d);
+>          vnuma_destroy(d->vnuma);
+> -        domain_set_outstanding_pages(d, 0);
+> +        /* Release all outstanding claims of the domain. */
+> +        domain_set_claim_entries(d, 1, &(xen_memory_claim_t){
+> +            .target = XEN_DOMCTL_CLAIM_MEMORY_HOST, .pages = 0,
+> +        });
+Installing an empty host-wide claim to release everything works, but the
+reader has to go through domain_set_claim_entries() to see that it can't
+fail and ends up in release_existing. Could page_alloc.c instead export a
+small domain_release_claims(d) helper, taking the locks and calling
+domain_recall_node_claims() + domain_release_host_claims()? That keeps the
+release helpers static and makes this call self-explanatory.
+
+> [ ... 3 lines skipped ... ]
+> diff --git a/xen/common/domctl.c b/xen/common/domctl.c
+> index 93738931c5..391f256f01 100644
+> --- a/xen/common/domctl.c
+> +++ b/xen/common/domctl.c
+> @@ -51,6 +51,57 @@ static int xenctl_bitmap_to_nodemask(nodemask_t *nodemask,
+>                                     MAX_NUMNODES);
+>  }
+>  
+> +/* Set or get memory claims for a domain. */
+> +static int claim_memory(struct domain *d,
+> +                        struct xen_domctl_claim_memory *uinfo, bool *copyback)
+> +{
+> +    xen_memory_claim_t *entries;
+> +    int rc = -EFAULT;
+> +
+> +    /* Reject LLC coloring; alloc_color_heap_page() does not handle claims. */
+> +    if ( llc_coloring_enabled )
+> +        return -EOPNOTSUPP;
+> +
+> +    switch ( uinfo->mode )
+> +    {
+> +    case XEN_DOMCTL_CLAIM_MEMORY_SET:
+> +        if ( !uinfo->nr_entries )
+> +            return -EINVAL;
+> +        if ( uinfo->nr_entries > MAX_NUMNODES + 1 )
+> +            return -E2BIG;
+> +        break;
+> +    case XEN_DOMCTL_CLAIM_MEMORY_GET:
+> +        if ( uinfo->nr_entries > MAX_NUMNODES + 1 )
+> +            uinfo->nr_entries = MAX_NUMNODES + 1;
+> +        break;
+> +    default:
+> +        return -EOPNOTSUPP;
+> +    }
+> +    if ( d->is_dying )
+> +        return -ESRCH;
+> +
+> +    entries = xmalloc_array(xen_memory_claim_t, uinfo->nr_entries);
+> +    if ( entries == NULL )
+
+Nit: !entries.
+
+> +        return -ENOMEM;
+> +
+> +    switch ( uinfo->mode )
+> +    {
+> +    case XEN_DOMCTL_CLAIM_MEMORY_SET:
+> +        if ( !copy_from_guest(entries, uinfo->claim_set, uinfo->nr_entries) )
+> +            rc = domain_set_claim_entries(d, uinfo->nr_entries, entries);
+> +        break;
+> +    case XEN_DOMCTL_CLAIM_MEMORY_GET:
+> +        rc = domain_get_claim_entries(d, &uinfo->nr_entries, entries);
+> +        *copyback = true;
+> +        if ( !rc && copy_to_guest(uinfo->claim_set, entries,
+> +                                  uinfo->nr_entries) )
+> +            rc = -EFAULT;
+> +        break;
+> +    }
+> +    xfree(entries);
+> +    return rc;
+
+Blank line before the final return.
+
+> [ ... 128 lines skipped ... ]
+> @@ -858,6 +805,253 @@ static void check_and_stop_scrub(struct page_info *head)
+>      }
+>  }
+>  
+> +/* Release claims from the host-wide claims pool of the domain. */
+> +static unsigned long domain_release_host_claims(struct domain *d,
+> +                                                unsigned long release)
+> +{
+> +    unsigned long host_wide_claims;
+> +
+> +    ASSERT(d->outstanding_pages >= d->node_claims);
+> +    host_wide_claims = d->outstanding_pages - d->node_claims;
+> +
+> +    if ( release > host_wide_claims )
+> +        release = host_wide_claims;
+> +
+> +    ASSERT(release <= outstanding_claims);
+> +
+> +    outstanding_claims -= release;
+> +    d->outstanding_pages -= release;
+> +
+> +    return release;
+> +}
+> +
+> +/* Release claims from the node-specific claims pool of the domain. */
+> +static unsigned long domain_release_node_claims(
+I'm a bit confused by the naming of domain_release_node_claims() and
+domain_recall_node_claims(): both release node claims, the only
+difference being that the former targets one given node while the
+latter walks all nodes. I'd suggest naming them after that:
+
+    domain_release_node_claim(d, node, pages);  /* one given node */
+    domain_release_any_node_claims(d, pages);   /* any node */
+
+> +    struct domain *d, nodeid_t node, unsigned long release)
+
+Nit: the parameters fit when aligned after the (, like
+domain_release_host_claims() above.
+
+> [ ... 42 lines skipped ... ]
+> +/* Get claim entries for the outstanding claims of a domain. */
+> +int domain_get_claim_entries(struct domain *d, uint32_t *nr_entries,
+> +                             xen_memory_claim_t *entries)
+> +{
+> +    unsigned int needed_entries = 1, max_entries = *nr_entries;
+> +    nodeid_t node;
+> +
+> +    /* If max_entries is 0, only the number of needed entries is returned. */
+> +    if ( max_entries )
+> +    {
+> +        memset(entries, 0, sizeof(*entries) * max_entries);
+> +        entries[0].target = XEN_DOMCTL_CLAIM_MEMORY_HOST;
+> +    }
+> +
+> +    spin_lock(&heap_lock);
+> +    if ( max_entries )
+> +    {
+> +        ASSERT(d->outstanding_pages >= d->node_claims);
+> +        entries[0].pages = d->outstanding_pages - d->node_claims;
+> +    }
+> +
+> +    for_each_online_node ( node )
+> +    {
+> +        if ( !d->claims[node] )
+> +            continue;
+> +
+> +        if ( needed_entries < max_entries )
+> +        {
+> +            entries[needed_entries].target = node;
+> +            entries[needed_entries].pages = d->claims[node];
+> +        }
+> +        needed_entries++;
+> +    }
+> +    spin_unlock(&heap_lock);
+> +    *nr_entries = needed_entries;
+> +    return needed_entries <= max_entries ? 0 : -ERANGE;
+
+Blank line before the final return.
+
+> +}
+> +
+> +/* Validate a set of claim records and install it if valid. */
+> +int domain_set_claim_entries(struct domain *d, uint32_t nr_entries,
+> +                             const xen_memory_claim_t *claim_set)
+> +{
+> +    uint64_t avail_pages, request, node_requests = 0, host_requests = 0;
+
+I think native types would fit better for avail_pages and request. What
+about:
+
+    unsigned long avail_pages, request;
+    uint64_t node_requests = 0, host_requests = 0;
+
+The accumulators can stay uint64_t: node_requests + host_requests +
+domain_tot_pages(d) can exceed UINT_MAX, which would not fit in a 32-bit
+unsigned long.
+
+With that, you would need to add this check just before
+`request = claim_set[i].pages`, since `pages` is a uint64_t, to make sure
+there is no narrowing conversion:
+
+    if ( claim_set[i].pages > d->max_pages )
+        goto out;
+
+As d->max_pages is an unsigned int, claim_set[i].pages is then
+guaranteed to fit in request.
+
+> +    nodemask_t nodes;
+> +    uint32_t node;
+
+And here:
+
+    unsigned int node;
+
+> +    int ret = -EINVAL;
+> +    bool host_request_seen = false, legacy_semantics = false;
+> +
+I think it would be worth stating nr_entries != 0 as a precondition, or
+adding a check:
+
+    if ( !nr_entries )
+        return ret;
+
+I understand the only caller, claim_memory(), already checks it, but with
+nr_entries == 0 this function silently goes to release_existing and drops
+all existing claims, which a future caller may not expect.
+
+> +    /*
+> +     * Two locks are needed here:
+> +     *  - d->page_alloc_lock: protects accesses to d->{tot,max,extra}_pages.
+> +     *  - heap_lock: protects accesses to total_avail_pages, node_avail_pages,
+> +     *    avail[], scrub state and all total and node-specific claim counters.
+> +     */
+> +    nrspin_lock(&d->page_alloc_lock);
+> +    spin_lock(&heap_lock);
+> +
+> +    /*
+> +     * Phase 1: Check and process the individual claim entries. Check
+> +     * the node-specific claim requests, and validate them against the
+> +     * available memory. Track legacy and host-wide claim requests and
+> +     * prepare validation of the combined claims in Phase 2.
+> +     */
+> +    nodes_clear(nodes);
+> +    for ( uint32_t i = 0; i < nr_entries; i++ )
+
+Nit: unsigned int would fit better for i. Also, avail_pages, request and
+node are only used inside the loops, so their scope can be reduced.
+
+> +    {
+> +        node = claim_set[i].target;
+> +        request = claim_set[i].pages;
+> +
+> +        if ( claim_set[i].cmd ) /* Reserved for possible future use. */
+> +            goto out;
+> +
+> +        switch ( node )
+> +        {
+> +        case XEN_DOMCTL_CLAIM_MEMORY_LEGACY:
+> +            legacy_semantics = true;
+> +            fallthrough;
+> +        case XEN_DOMCTL_CLAIM_MEMORY_HOST:
+> +            if ( host_request_seen ) /* Only one host-wide request allowed. */
+
+Nit: maybe a gdprintk() here, so the caller can tell why the request
+was rejected?
+
+> +                goto out;
+> +
+> +            host_request_seen = true;
+> +            host_requests = request;
+> +            continue;
+> +        }
+
+Missing default label here (MISRA C:2012 Rule 16.4):
+
+        default:
+            break;
+
+> +
+> +        /* Node-specific claim. */
+> +        if ( node >= MAX_NUMNODES || !node_online(node) )
+> +        {
+> +            ret = -ENOENT; /* Node not valid or not online. */
+> +            goto out;
+> +        }
+> +
+> +        if ( nodemask_test(node, &nodes) ) /* Only one request per node. */
+> +            goto out;
+> +        node_set(node, nodes);
+> +
+> +        ASSERT(node_avail_pages[node] >= claimed_pages[node]);
+> +        avail_pages = node_avail_pages[node] - claimed_pages[node];
+> +
+Nit: could you add a short comment explaining why d->claims[node] is
+added back? Something like:
+
+    /* The new claim replaces the domain's current one on this node. */
+
+> +        if ( request > avail_pages + d->claims[node] )
+> +        {
+> +            ret = -ENOMEM; /* Request exceeds available memory on node. */
+> +            goto out;
+> +        }
+
+I'm not sure a comment describing behaviour that happens later makes
+sense here.
+
+> +        node_requests += request; /* The combined total is checked below. */
+> +    }
+> +
+> +    /*
+> +     * Phase 2: Validate the combined claim set.
+> +     * Apply legacy semantics if needed, then check that the total fits
+> +     * within d->max_pages and within the available unclaimed heap memory.
+> +     * A zero new-claim request is a pure release; skip validation entirely.
+> +     */
+> +    if ( legacy_semantics )
+> +    {
+> +        if ( node_requests )
+
+Shouldn't there be a debug trace saying that node-specific requests are not
+supported with legacy semantics?
+
+> +            goto out;
+> +
+> +        if ( !host_requests )
+> +            goto release_existing;
+> +
+> +        /*
+> +         * Legacy semantics require the request to exceed the current
+> +         * allocation; the request is then reduced by the current allocation.
+> +         * Existing outstanding claims are not allowed.
+> +         */
+> +        if ( d->outstanding_pages ||
+> +             host_requests <= domain_tot_pages(d) )
+
+This fits on one line.
+
+> +            goto out;
+> +
+> +        host_requests -= domain_tot_pages(d);
+> +    }
+> +    else if ( !host_requests && !node_requests )
+> +        goto release_existing;
+> +
+> +    /* Ensure new claims plus domain_tot_pages() fit into d->max_pages. */
+> +    if ( host_requests > d->max_pages ||
+> +         node_requests > d->max_pages - host_requests ||
+> +         node_requests + host_requests + domain_tot_pages(d) > d->max_pages )
+> +        goto out;
+
+
+With the per-entry check suggested above:
+
+    if ( claim_set[i].pages > d->max_pages )
+        goto out;
+
+each entry is at most UINT_MAX, so:
+- host_requests <= UINT_MAX, as it comes from a single entry;
+- domain_tot_pages(d) <= UINT_MAX;
+- node_requests <= MAX_NUMNODES * UINT_MAX, as there is at most one
+  entry per node. With MAX_NUMNODES = 64, that is below 2^38.
+
+The sum is computed in uint64_t, since node_requests is a uint64_t, and
+stays below 2^39, so it can't overflow. The first two conditions only
+guard against that overflow and are implied by the third one, so this
+can be reduced to:
+
+    if ( node_requests + host_requests + domain_tot_pages(d) > d->max_pages )
+        goto out;
+
+> +
+> +    /* Ensure new claims fit in the total unclaimed heap memory. */
+> +    ASSERT(total_avail_pages >= outstanding_claims);
+> +    if ( node_requests + host_requests >
+> +         (total_avail_pages - outstanding_claims) + d->outstanding_pages )
+> +    {
+> +        /* New claims would exceed available unclaimed memory. */
+> +        ret = -ENOMEM;
+> +        goto out;
+> +    }
+
+Nit: a local would make this easier to read, e.g.:
+
+    unsigned long unclaimed = total_avail_pages - outstanding_claims;
+
+> +
+> + release_existing:
+> +    /* Phase 3: Remove the old claims before installing the new claims. */
+> +    domain_recall_node_claims(d, d->node_claims);
+> +    domain_release_host_claims(d, d->outstanding_pages);
+> +    ASSERT(!d->node_claims && !d->outstanding_pages);
+> +
+> +    /* Phase 4: Install new node-specific and host-wide claims. */
+> +    d->node_claims = node_requests;
+> +    d->outstanding_pages = host_requests + node_requests;
+> +    outstanding_claims += d->outstanding_pages;
+> +
+> +    /* Phase 5: Install the individual node claims. */
+> +    for ( uint32_t i = 0; i < nr_entries; i++ )
+
+Nit: unsigned int here too.
+
+> +    {
+> +        node = claim_set[i].target;
+> +        request = claim_set[i].pages;
+> +        if ( node >= MAX_NUMNODES ) /* Skip non-node claim targets. */
+> +            continue;
+> +
+> +        ASSERT(!d->claims[node]);
+> +        d->claims[node] = request;
+> +        claimed_pages[node] += request;
+> +    }
+> +    ret = 0;
+> + out:
+> +    spin_unlock(&heap_lock);
+> +    nrspin_unlock(&d->page_alloc_lock);
+> +    return ret;
+
+Blank line before the label and before the final return.
+
+> +}
+> +
+>  static struct page_info *get_free_buddy(unsigned int zone_lo,
+>                                          unsigned int zone_hi,
+>                                          unsigned int order, unsigned int memflags,
+> @@ -907,6 +1101,18 @@ static struct page_info *get_free_buddy(unsigned int zone_lo,
+>       */
+>      for ( ; ; )
+>      {
+> +        unsigned long avail_pages;
+> +
+> +        ASSERT(node_avail_pages[node] >= claimed_pages[node]);
+> +        avail_pages = node_avail_pages[node] - claimed_pages[node];
+> +
+> +        if ( d && !(memflags & MEMF_no_refcount) )
+> +            avail_pages += d->claims[node];
+> +
+> +        /* Skip this node if memory and claims do not permit this request. */
+> +        if ( avail_pages < (1UL << order) )
+
+Nit: 1UL << order is now used twice per node iteration (here and in the
+avail[node][zone] check below). What about a local, as alloc_heap_pages()
+already does:
+
+    unsigned long request = 1UL << order;
+
+> [ ... 13 lines skipped ... ]
+> @@ -1047,13 +1254,13 @@ static struct page_info *alloc_heap_pages(
+>          }
+>      }
+>  
+> -    ASSERT(avail[node][zone] >= request);
+> -    avail[node][zone] -= request;
+> -    ASSERT(total_avail_pages >= request);
+> -    total_avail_pages -= request;
+> -    ASSERT(node_avail_pages[node] >= request);
+> -    node_avail_pages[node] -= request;
+> -
+> +    /*
+> +     * Ensure the domain's claims are fully redeemed before deducting
+> +     * the allocation from the page counters, otherwise the host or the
+> +     * node might be left with more claims than available pages. This would
+> +     * break the invariants claimed_pages[node] <= node_avail_pages[node]
+> +     * and outstanding_claims <= total_avail_pages.
+> +     */
+>      if ( d && d->outstanding_pages && !(memflags & MEMF_no_refcount) )
+>      {
+>          /*
+> @@ -1071,13 +1278,34 @@ static struct page_info *alloc_heap_pages(
+>           * the domain being destroyed before creation is finished.  Losing part
+>           * of the claim makes no difference.
+>           */
+> -        unsigned long outstanding = min(d->outstanding_pages + 0UL, request);
+> +        unsigned long redeem = min(d->outstanding_pages + 0UL, request);
+> +
+> +        BUG_ON(redeem > outstanding_claims);
+> +
+> +        /* Maintain invariant: claimed_pages[node] <= node_avail_pages[node] */
+> +        redeem -= domain_release_node_claims(d, node, redeem);
+>  
+> -        BUG_ON(outstanding > outstanding_claims);
+> -        outstanding_claims -= outstanding;
+> -        d->outstanding_pages -= outstanding;
+> +        if ( redeem )
+> +        {
+> +            /*
+> +             * Maintain the invariant outstanding_claims <= total_avail_pages:
+> +             * Redeem from the host-wide claims pool and if needed from other
+> +             * nodes' claims pools to maintain that outstanding_claims do not
+> +             * exceed total_avail_pages after deducting the allocation.
+
+Nit: this repeats the outstanding_claims <= total_avail_pages statement
+from the first line. I'd trim it to:
+
+            /*
+             * Redeem from the host-wide claims pool and, if needed, from
+             * other nodes' claims pools to keep outstanding_claims <=
+             * total_avail_pages after deducting the allocation.
+             */
+
+> [ ... 25 lines skipped ... ]
+> @@ -1256,6 +1485,43 @@ static int reserve_offlined_page(struct page_info *head)
+>          count++;
+>      }
+>  
+> +    /* Offlining pages may violate claim invariants; restore them if needed. */
+
+Which invariants, and in which case does offlining break them? I can work
+it out because I'm reading the series in order, but someone reading this
+code once it's committed won't have that context. Please spell both out
+here, or in the commit message.
+
+> [ ... 39 lines skipped ... ]
+> diff --git a/xen/include/public/domctl.h b/xen/include/public/domctl.h
+> index 8f6708c0a7..352d7095c9 100644
+> --- a/xen/include/public/domctl.h
+> +++ b/xen/include/public/domctl.h
+> @@ -1276,6 +1276,42 @@ struct xen_domctl_get_domain_state {
+>      uint64_t unique_id;      /* Unique domain identifier. */
+>  };
+>  
+> +struct xen_memory_claim {
+> +    uint64_aligned_t pages; /* Number of pages to claim. */
+> +    uint32_t target;        /* NUMA node or special target constant. */
+> +    uint32_t cmd;           /* Reserved, must be zero. */
+> +};
+> +typedef struct xen_memory_claim xen_memory_claim_t;
+> +DEFINE_XEN_GUEST_HANDLE(xen_memory_claim_t);
+> +
+> +/* Special claim targets for the target field of xen_memory_claim_t. */
+> +#define XEN_DOMCTL_CLAIM_MEMORY_HOST     0x80000000U /* Host-wide claims. */
+> +#define XEN_DOMCTL_CLAIM_MEMORY_LEGACY   0x40000000U /* Legacy semantics. */
+
+How did you choose these values? IMO the rationale belongs in the commit
+message.
+
+> [ ... 44 lines skipped ... ]
+> diff --git a/xen/include/public/memory.h b/xen/include/public/memory.h
+> index bd9fc37b52..086334af05 100644
+> --- a/xen/include/public/memory.h
+> +++ b/xen/include/public/memory.h
+> @@ -569,6 +569,8 @@ DEFINE_XEN_GUEST_HANDLE(xen_mem_sharing_op_t);
+>   * for 10, only 7 additional pages are claimed.
+>   *
+>   * Caller must be privileged or the hypercall fails.
+> + *
+> + * Note: This hypercall is superseded by XEN_DOMCTL_claim_memory.
+
+Same question as for xc_domain_claim_pages() above: should
+XENMEM_claim_pages emit a deprecation warning?
+
+> [ ... 27 lines skipped ... ]
+> diff --git a/xen/include/xen/sched.h b/xen/include/xen/sched.h
+> index 00db1da12f..f671e0c4c7 100644
+> --- a/xen/include/xen/sched.h
+> +++ b/xen/include/xen/sched.h
+> @@ -419,6 +419,10 @@ struct domain
+>      unsigned int     xenheap_pages;     /* pages allocated from Xen heap */
+>      /* Pages claimed but not possessed, protected by global heap_lock. */
+>      unsigned int     outstanding_pages;
+> +    unsigned int     node_claims;       /* Sum of per-node claims. */
+> +    /* Domain objects use dedicated pages, leaving room for per-node claims. */
+> +    unsigned int     claims[MAX_NUMNODES]; /* Per-NUMA-node claims. */
+> +
+
+Stray blank line added in the middle of the field group.
+
+-- 
+Baptiste Le Duc <baptiste.le-duc@vates.tech>
+
+
+
