@@ -881,6 +881,9 @@ static int cf_check flask_domctl(struct domain *d, struct xen_domctl *op)
     case XEN_DOMCTL_set_llc_colors:
         return current_has_perm(d, SECCLASS_DOMAIN2, DOMAIN2__SET_LLC_COLORS);
 
+    case XEN_DOMCTL_set_memory_claims:
+        return flask_claim_pages(d);
+
     default:
         return avc_unknown_permission("domctl", op->cmd);
     }
