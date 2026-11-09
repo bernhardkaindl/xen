@@ -526,12 +526,14 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 {
     int ret = -ENOMEM;
     unsigned long claim, avail_pages;
+    unsigned int *old_claims = NULL;
 
     /*
      * Two locks are needed here:
      *  - d->page_alloc_lock: protects accesses to d->{tot,max,extra}_pages.
-     *  - heap_lock: protects accesses to d->outstanding_pages, total_avail_pages
-     *    and outstanding_claims.
+     *  - heap_lock: protects accesses to d->outstanding_pages,
+     *    d->node_claims, d->claims[], total_avail_pages, outstanding_claims,
+     *    and node_claimed_pages[].
      */
     nrspin_lock(&d->page_alloc_lock);
     spin_lock(&heap_lock);
@@ -539,6 +541,25 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
     /* pages==0 means "unset" the claim. */
     if ( pages == 0 )
     {
+        unsigned int node;
+
+        /* Release per-node claims included in d->outstanding_pages. */
+        ASSERT(d->outstanding_pages >= d->node_claims);
+        if ( d->claims )
+            for_each_online_node ( node )
+            {
+                if ( !d->node_claims )
+                    break;
+
+                ASSERT(node_claimed_pages[node] >= d->claims[node]);
+                node_claimed_pages[node] -= d->claims[node];
+                d->node_claims -= d->claims[node];
+            }
+        ASSERT(!d->node_claims);
+
+        /* Detach d->claims; xvfree() can take heap_lock, so free it later. */
+        old_claims = d->claims;
+        d->claims = NULL;
         outstanding_claims -= d->outstanding_pages;
         d->outstanding_pages = 0;
         ret = 0;
@@ -580,6 +601,7 @@ int domain_set_outstanding_pages(struct domain *d, unsigned long pages)
 out:
     spin_unlock(&heap_lock);
     nrspin_unlock(&d->page_alloc_lock);
+    xvfree(old_claims);
     return ret;
 }
 
