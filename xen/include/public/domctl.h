@@ -1279,6 +1279,19 @@ struct xen_domctl_get_domain_state {
     uint64_t unique_id;      /* Unique domain identifier. */
 };
 
+/*
+ * Special target for a host-wide claim, not associated with a NUMA node.
+ * Other values with bit 31 set are reserved for future special targets.
+ */
+#define XEN_DOMCTL_MEMORY_CLAIM_TARGET_HOST 0x80000000U
+
+/* Memory claim structure */
+typedef struct xen_domctl_memory_claim {
+    uint64_aligned_t pages; /* Number of claimed pages. */
+    uint32_t target;        /* NUMA node or special target constant. */
+    uint32_t pad;           /* Must be zero. */
+} xen_domctl_memory_claim_t;
+
 struct xen_domctl {
 /* Stable domctl ops: interface_version is required to be 0.  */
     uint32_t cmd;
