@@ -1,0 +1,38 @@
+flowchart TD
+    start(["domain_validate_claim_request<br/>(page_alloc_lock held throughout)"])
+    init["Zero total_pages and node_pages;<br/>clear target tracking"]
+    next_entry{"More entries?"}
+    pages{"Pages zero, padding set,<br/>or running total exceeds max_pages?"}
+    total["Add pages to total_pages"]
+    host{"Host target?"}
+    host_seen{"Host target seen before?"}
+    record_host["Record host target as seen"]
+    reserved{"Target bit 31 set?"}
+    unavailable{"Node ID out of range<br/>or node offline?"}
+    duplicate{"Node seen before?"}
+    record["Record node as seen;<br/>add pages to node_pages"]
+    limit{"Allocated pages plus claims<br/>exceed max_pages?"}
+    invalid(["Return -EINVAL"])
+    missing(["Return -ENOENT"])
+    success(["Return 0 to domain_set_claims<br/>(page_alloc_lock still held)"])
+
+    start --> init --> next_entry
+    next_entry -- Yes --> pages
+    pages -- Yes --> invalid
+    pages -- No --> total --> host
+    host -- Yes --> host_seen
+    host_seen -- Yes --> invalid
+    host_seen -- No --> record_host --> next_entry
+    host -- No --> reserved
+    reserved -- Yes --> invalid
+    reserved -- No --> unavailable
+    unavailable -- Yes --> missing
+    unavailable -- No --> duplicate
+    duplicate -- Yes --> invalid
+    duplicate -- No --> record --> next_entry
+    next_entry -- No --> limit
+    limit -- Yes --> invalid
+    limit -- No --> success
+
+    classDef error fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
+    class invalid,missing error

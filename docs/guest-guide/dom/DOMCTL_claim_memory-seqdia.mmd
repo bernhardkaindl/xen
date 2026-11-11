@@ -1,0 +1,16 @@
+%% SPDX-License-Identifier: CC-BY-4.0
+sequenceDiagram
+
+actor DomainBuilder
+participant Libxc as xc_domain_set_memory_claims
+participant Domctl as XEN_DOMCTL_set_memory_claims
+participant Alloc as domain_set_claims
+
+DomainBuilder->>Libxc: claims
+Libxc->>Domctl: do_domctl
+
+Domctl->>Domctl: copy and validate claim entries
+Domctl->>Alloc: validate and install claims
+Alloc-->>Domctl: result
+Domctl-->>Libxc: rc
+Libxc-->>DomainBuilder: result

@@ -12,6 +12,7 @@ Glossary
      to create and manage other domains on the system.
 
    domain
+   domains
      A domain is Xen's unit of resource ownership, and generally has at the
      minimum some RAM and virtual CPUs.
 
@@ -58,13 +59,18 @@ Glossary
 
      In the code, "guest context" and "guest state" is considered in terms of
      the CPU architecture, and contrasted against hypervisor context/state.
-     In this case, it refers to all code running lower privilege privilege
-     level the hypervisor.  As such, it covers all domains, including ones
+     In this case, it refers to all code running lower privilege level than
+     the hypervisor.  As such, it covers all domains, including ones
      providing system services.
 
    hardware domain
      A :term:`domain`, commonly dom0, which shares responsibility with Xen
      about the system as a whole.
 
-     By default it gets all devices, including all disks and network cards, so
+     By default, it gets all devices, including all disks and network cards, and
      is responsible for multiplexing guest I/O.
+
+   hypercall
+   hypercalls
+     A mechanism for a :term:`guest` to request services from the hypervisor.
+     Hypercalls are analogous to system calls in a traditional operating system.

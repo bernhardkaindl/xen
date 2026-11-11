@@ -183,3 +183,5 @@ Custom commands
 		MKFLASK include/flask.h
 
 	will be displayed with "make V=0". (V=0 is the default)
+
+.. include:: faq.rst
