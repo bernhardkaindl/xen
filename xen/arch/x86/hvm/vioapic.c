@@ -197,7 +197,7 @@ static int vioapic_hwdom_map_gsi(unsigned int gsi, unsigned int trig,
         return ret;
     }
 
-    pcidevs_lock();
+    read_lock(&currd->pci_lock);
     ret = pt_irq_create_bind(currd, &pt_irq_bind);
     if ( ret )
     {
@@ -207,7 +207,7 @@ static int vioapic_hwdom_map_gsi(unsigned int gsi, unsigned int trig,
         unmap_domain_pirq(currd, pirq);
         write_unlock(&currd->event_lock);
     }
-    pcidevs_unlock();
+    read_unlock(&currd->pci_lock);
 
     return ret;
 }
@@ -475,7 +475,7 @@ static void vioapic_deliver(struct hvm_vioapic *vioapic, unsigned int pin)
         for_each_vcpu ( d, v )
             if ( vlapic_match_dest(vcpu_vlapic(v), NULL,
                                    0, dest, dest_mode) &&
-                 !test_and_set_bool(v->arch.nmi_pending) )
+                 !test_and_set_bool(v->arch.nmi_state.pending) )
                 vcpu_kick(v);
         break;
     }

@@ -53,7 +53,7 @@ void call_psci_cpu_off(void)
     {
         struct arm_smccc_res res;
 
-        /* If successfull the PSCI cpu_off call doesn't return */
+        /* If successful the PSCI cpu_off call doesn't return */
         res = arm_smccc_smc(PSCI_0_2_FN32_CPU_OFF);
         panic("PSCI cpu off failed for CPU%d err=%d\n", smp_processor_id(),
               PSCI_RET(res));
@@ -198,6 +198,7 @@ static int __init psci_init_0_2(void)
     {
         printk("Error: Unrecognized PSCI version %u.%u\n",
                PSCI_VERSION_MAJOR(psci_ver), PSCI_VERSION_MINOR(psci_ver));
+        psci_ver = 0;
         return -EOPNOTSUPP;
     }
 

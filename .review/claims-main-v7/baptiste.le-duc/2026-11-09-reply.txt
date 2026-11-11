@@ -1,0 +1,196 @@
+Hi Baptiste,
+
+> Hi Bernhard,
+> 
+> Thanks for the patch! At ~500 changed lines it is hard to review in one
+> go. Could you split it into smaller patches, ideally under 200 lines
+> each? For instance:
+
+Thanks for the review! Previous review pointed to that as well and a
+number of other changes were requested too. As a result, there are a
+lot more changes. The split of the v8 submission is simlar in intent:
+
+>   1. domain_{set,get}_claim_entries(), with XENMEM_claim_pages and
+>      domain_kill() converted to it,
+>   2. per-node claim accounting in the allocator (claimed_pages[],
+>      d->claims[], redeeming in alloc_heap_pages()/get_free_buddy()),
+>   3. restoring the claim invariants on page offlining,
+>   4. the new XEN_DOMCTL_claim_memory (public header, domctl, XSM),
+>   5. the xc_domain_claim_memory() wrapper in libxenctrl.
+
+Done. Incorporating lots of other change requests resulting in big
+changes, I split the v8 submission into two groups of 4 patches each:
+
+Group 1:
+
+1. xen/mm: protect per-node claims in get_free_buddy()
+2. xen/mm: release per-node claims in domain_set_outstanding_pages()
+3. xen/mm: redeem per-node claims for allocations
+4. xen/mm: add domain_set_claims() for new claim requests
+
+Group 2:
+
+5. xen/domctl: add XEN_DOMCTL_set_memory_claims
+6. libxc: add xc_domain_set_memory_claims()
+7. xen/domctl: add XEN_DOMCTL_get_memory_claims
+8. libxc: add xc_domain_get_memory_claims()
+
+PS: The item #3 on restoring claim invariants is removed in favour of
+trivially handling this corner case, which removes a lot of code and
+especially disagreement potential that would hold back this review. :)
+
+> Some comments below :)
+
+Very much appreciated! I'm incorporating your comments into v8, and
+for v8, I went through a extensive pre-review phase with dozens of
+comments per pre-review iteration, which addresses most of them too.
+
+> > Rendered version: https://xen.kaindl.dev/claims-v7-design/designs/claims
+> Very useful, thanks!
+
+Thanks, I'll post an update of it for v8 as well.
+
+> > +/* XENMEM_claim_pages is deprecated; use xc_domain_claim_memory() instead. */
+> 
+> Shouldn't XENMEM_claim_pages then be formally deprecated, e.g. with a
+> warning when it is used? I don't know whether Xen has such a practice,
+> but it would notify users without breaking the hypercall ABI.
+
+While I'd like to formally deprecate it, in v8, I removed this comment
+to split deprecation into be a follow-up submission, so this series can
+focus on the work needed to get this series ready for the next Xen release.
+
+> > -        domain_set_outstanding_pages(d, 0);
+> > +        /* Release all outstanding claims of the domain. */
+> > +        domain_set_claim_entries(d, 1, &(xen_memory_claim_t){
+> > +            .target = XEN_DOMCTL_CLAIM_MEMORY_HOST, .pages = 0,
+> > +        });
+> Installing an empty host-wide claim to release everything works, but the
+> reader has to go through domain_set_claim_entries() to see that it can't
+> fail and ends up in release_existing. Could page_alloc.c instead export a
+> small domain_release_claims(d) helper, taking the locks and calling
+> domain_recall_node_claims() + domain_release_host_claims()? That keeps the
+> release helpers static and makes this call self-explanatory.
+
+As part of the effort to minimize changes, v8 will not make any change
+here at all, but I'll take note of it for a follow-up submission.
+
+> I'm a bit confused by the naming of domain_release_node_claims() and
+> domain_recall_node_claims(): both release node claims, the only
+> difference being that the former targets one given node while the
+> latter walks all nodes. I'd suggest naming them after that:
+> 
+>     domain_release_node_claim(d, node, pages);  /* one given node */
+>     domain_release_any_node_claims(d, pages);   /* any node */
+
+Done in v8 with minor changes, see the v8 series which I'll post shortly.
+
+> > +    uint64_t avail_pages, request, node_requests = 0, host_requests = 0;
+> 
+> I think native types would fit better for avail_pages and request. What
+> about:
+[...]
+
+As a reply to all comments on this function, all comments are applied in v8:
+- I split this code into four helper functions, all nitpics are applied.
+- All Xen-internal types are changed to native types even accumulators.
+- To prevent 32/64-bit overflow, guard overflow by checking d->max_pages.
+
+> > +        case XEN_DOMCTL_CLAIM_MEMORY_HOST:
+> > +            if ( host_request_seen ) /* Only one host-wide request allowed. */
+> 
+> Nit: maybe a gdprintk() here, so the caller can tell why the request
+> was rejected?
+
+When the hypercall handlers return EINVAL, the domain builder code
+in the toolstack can log the invalid arguments of the failing call.
+
+Toolstack developers can then fix the domain builder. A toolstack
+developer will have to debug the root cause of the invalid request
+in his code base, and from looking at the logged claim request, the
+cause should be obvious. v8 will also have a detailed API spec that
+lists all the possible causes for each errno returned, so toolstack
+developers can refer to it in case their claim hypercalls fail.
+You'll find this API documentation in the v8 submission.
+
+> Nit: could you add a short comment explaining why d->claims[node] is
+> added back? Something like:
+
+Obsoleted: As part of reducing the size of the patches to a minimum in
+v8, I removed the possiblity to modify claims so this no longer exists.
+
+> Shouldn't there be a debug trace saying that node-specific requests are not
+> supported with legacy semantics?
+
+Obsoleted: While minimising the code for v8, new code does not
+handle the legacy semantics, and are only part of the legacy code.
+This means this code no longer exists in v8.
+
+> The sum is computed in uint64_t, since node_requests is a uint64_t, and
+> stays below 2^39, so it can't overflow. The first two conditions only
+> guard against that overflow and are implied by the third one, so this
+
+I want to add that widening struct domain's page counters to unsigned long
+to support domains > 16TiB is a future possiblity and v8 uses d->max_pages
+as the guard to prevent overflow.
+
+> Nit: 1UL << order is now used twice per node iteration (here and in the
+> avail[node][zone] check below). What about a local, as alloc_heap_pages()
+> already does:
+> 
+>     unsigned long request = 1UL << order;
+
+Applied: I expect a compiler to simply reuse the value computed directly
+before but I always liked to apply this change as it reads more nicely.
+Even if the patch gets larger by a few lines, I like this nit fix.
+
+> Nit: this repeats the outstanding_claims <= total_avail_pages statement
+> from the first line. I'd trim it to:
+> 
+>             /*
+>              * Redeem from the host-wide claims pool and, if needed, from
+>              * other nodes' claims pools to keep outstanding_claims <=
+>              * total_avail_pages after deducting the allocation.
+>              */
+
+Thanks, I took a shaper look and used it as the basis for a better comment.
+
+> > +    /* Offlining pages may violate claim invariants; restore them if needed. */
+> 
+> Which invariants, and in which case does offlining break them? I can work
+> it out because I'm reading the series in order, but someone reading this
+> code once it's committed won't have that context. Please spell both out
+> here, or in the commit message.
+
+-> Obsoleted:
+
+When offlining free memory, e.g. using XEN_SYSCTL_page_offline_op,
+free memory can drop below the pools of claims. In this corner case,
+I tried to release claims in this case in v7, but due to feedback,
+v8 no longer does that, which is a lot better.
+
+v8 handles this corner case as something that can be the case, which
+is much easier, and this removes a lot of added code and this comment.
+
+I updated the chapter about this case in the v8 design docs:
+https://xen.kaindl.dev/claims-docs-v8/designs/claims/implementation.html#offlining-memory-in-presence-of-claims
+
+> > +
+> > +/* Special claim targets for the target field of xen_memory_claim_t. */
+> > +#define XEN_DOMCTL_CLAIM_MEMORY_HOST     0x80000000U /* Host-wide claims. */
+> > +#define XEN_DOMCTL_CLAIM_MEMORY_LEGACY   0x40000000U /* Legacy semantics. */
+> 
+> How did you choose these values? IMO the rationale belongs in the commit
+> message.
+
+Ack:
+
+I added an explanation to the new split commit introducing it for v8.
+and I should be able to submit v8 with your feedback incorporated soon.
+
+A brief summary about the main changes prepared for v8 is at:
+https://xen.kaindl.dev/claims-docs-v8/designs/claims/development.html#v8-series
+
+Thank you very much,
+
+  - Bernhard

@@ -394,11 +394,12 @@ constant expressions are required.\""
 }
 -doc_end
 
--doc_begin="The conversion from 'void noreturn (*)(void *)' to 'void (*)(void *)' is safe
-because the semantics of the 'noreturn' attribute do not alter the calling convention or behavior of the resulting code."
+-doc_begin="The conversion from a noreturn function pointer to a function
+pointer with noreturn omitted but an otherwise compatible signature does
+not alter the calling convention."
 -config=MC3A2.R11.1,casts+={safe,
-  "kind(bitcast)&&to(type(pointer(inner(return(builtin(void))&&all_param(1, pointer(builtin(void)))))))&&from(expr(skip(!syntactic(),
-   ref(property(noreturn)))))"} 
+  "kind(bitcast)&&to(type(canonical(__function_pointer_types)))&&from(expr(skip(!syntactic(),
+   ref(property(noreturn)))))&&relation(compatible_deep_unqualified)"}
 -doc_end
 
 -doc_begin="The conversion from a pointer to an incomplete type to unsigned long does not lose any information, provided that the target type has enough bits to store it."
@@ -448,6 +449,14 @@ function, where the parameter needs to not be const because it can be set for
 write or not"
 -file_tag+={hvm_guestcopy, "^xen/arch/x86/hvm/hvm\\.c$"}
 -config=MC3A2.R11.8,reports+={safe,"any_area(any_loc(file(hvm_guestcopy)&&text(^.*__hvm_copy.*HVMCOPY_to_guest doesn't modify.*$)))"}
+-doc_end
+
+-doc_begin="Functions bsearch(), memchr(), strchr(), strpbrk(), strrchr() and
+strstr() accept a const pointer/object and return a non-const pointer to the
+matched element or byte, matching their standard C library interfaces. The
+casts in these implementations strip const so that a search of a non-const
+object yields a mutable pointer. This use is deemed safe."
+-config=MC3A2.R11.8,reports+={safe,"any_area(any_loc(file(^xen/include/xen/bsearch\\.h$||^xen/lib/(memchr|str+chr|strpbrk|strstr)\\.c$)))"}
 -doc_end
 
 -doc_begin="This construct is used to check if the type is scalar, and for this purpose the use of 0 as a null pointer constant is deliberate."

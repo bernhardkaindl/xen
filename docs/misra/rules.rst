@@ -435,9 +435,11 @@ maintainers if you want to suggest a change.
        and any other type
      - All conversions to integer types are permitted if the destination
        type has enough bits to hold the entire value. Conversions to bool
-       and void* are permitted. Conversions from 'void noreturn (*)(...)'
-       to 'void (*)(...)' are permitted. Conversions from [unsigned] long
-       or '(void *)' to a function pointer are permitted.
+       and '(void *)' are permitted. Conversions from a noreturn function
+       pointer to a function pointer with noreturn omitted but an otherwise
+       compatible signature are permitted.
+       Conversions from [unsigned] long or '(void *)' to a function pointer
+       are permitted.
        Example::
 
            unsigned long func_addr = (unsigned long)&some_function;
@@ -473,7 +475,11 @@ maintainers if you want to suggest a change.
    * - `Rule 11.8 <https://gitlab.com/MISRA/MISRA-C/MISRA-C-2012/Example-Suite/-/blob/master/R_11_08.c>`_
      - Required
      - A cast shall not remove any const or volatile qualification from the type pointed to by a pointer
-     -
+     - Some standard C library-style functions are inherently double-use,
+       accepting a const argument and returning a non-const pointer into
+       it so that callers searching a non-const object get back a
+       mutable pointer. The casts that implement this are deviated per
+       function.
 
    * - `Rule 11.9 <https://gitlab.com/MISRA/MISRA-C/MISRA-C-2012/Example-Suite/-/blob/master/R_11_09.c>`_
      - Required

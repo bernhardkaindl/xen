@@ -19,7 +19,8 @@
 
 bool hvm_domain_use_pirq(const struct domain *d, const struct pirq *pirq)
 {
-    return is_hvm_domain(d) && pirq && pirq->arch.hvm.emuirq != IRQ_UNBOUND;
+    ASSERT(is_hvm_domain(d));
+    return has_pirq(d) && pirq && pirq->arch.hvm.emuirq != IRQ_UNBOUND;
 }
 
 /* Must be called with hvm_domain->irq_lock hold */
@@ -382,7 +383,7 @@ int hvm_inject_msi(struct domain *d, uint64_t addr, uint32_t data)
         >> MSI_DATA_TRIGGER_SHIFT;
     uint8_t vector = data & MSI_DATA_VECTOR_MASK;
 
-    if ( !vector )
+    if ( has_pirq(d) && !vector )
     {
         unsigned int pirq = ((addr >> 32) & 0xffffff00U) | dest;
 
@@ -522,10 +523,10 @@ struct hvm_intack hvm_vcpu_has_pending_irq(struct vcpu *v)
      */
     hvm_sync_pir_to_irr(v);
 
-    if ( unlikely(v->arch.nmi_pending) )
+    if ( unlikely(v->arch.nmi_state.pending) )
         return hvm_intack_nmi;
 
-    if ( unlikely(v->arch.mce_pending) )
+    if ( unlikely(v->arch.mce_state.pending) )
         return hvm_intack_mce;
 
     if ( (plat->irq->callback_via_type == HVMIRQ_callback_vector)
@@ -550,11 +551,11 @@ struct hvm_intack hvm_vcpu_ack_pending_irq(
     switch ( intack.source )
     {
     case hvm_intsrc_nmi:
-        if ( !test_and_clear_bool(v->arch.nmi_pending) )
+        if ( !test_and_clear_bool(v->arch.nmi_state.pending) )
             intack = hvm_intack_none;
         break;
     case hvm_intsrc_mce:
-        if ( !test_and_clear_bool(v->arch.mce_pending) )
+        if ( !test_and_clear_bool(v->arch.mce_state.pending) )
             intack = hvm_intack_none;
         break;
     case hvm_intsrc_pic:

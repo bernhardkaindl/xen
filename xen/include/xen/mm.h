@@ -128,7 +128,24 @@ mfn_t xen_map_to_mfn(unsigned long va);
  * page range in Xen virtual address space.
  */
 int populate_pt_range(unsigned long virt, unsigned long nr_mfns);
+
 /* Claim handling */
+struct xen_domctl_memory_claim;
+struct claim_request {
+    /*
+     * Set: number of entries.
+     * Get: capacity of entries[] on input, number provided/needed on output.
+     */
+    unsigned int nr_entries;
+    struct xen_domctl_memory_claim *entries;
+    /* Sums of pages, computed by domain_set_claims(). */
+    unsigned long total_pages; /* Of all entries. */
+    unsigned long node_pages;  /* Of the per-node entries. */
+};
+
+int domain_set_claims(struct domain *d, struct claim_request *request);
+int domain_get_claims(const struct domain *d, struct claim_request *request);
+
 unsigned long __must_check domain_adjust_tot_pages(struct domain *d,
     long pages);
 int domain_set_outstanding_pages(struct domain *d, unsigned long pages);
@@ -530,26 +547,16 @@ page_list_splice(struct page_list_head *list, struct page_list_head *head)
     list_for_each_entry_safe_reverse(pos, tmp, head, list)
 #endif
 
-static inline unsigned int get_order_from_bytes(paddr_t size)
+static always_inline unsigned int get_order_from_bytes(paddr_t size)
 {
-    unsigned int order;
-
     size = (size - 1) >> PAGE_SHIFT;
-    for ( order = 0; size; order++ )
-        size >>= 1;
 
-    return order;
+    return fls64(size);
 }
 
-static inline unsigned int get_order_from_pages(unsigned long nr_pages)
+static always_inline unsigned int get_order_from_pages(unsigned long nr_pages)
 {
-    unsigned int order;
-
-    nr_pages--;
-    for ( order = 0; nr_pages; order++ )
-        nr_pages >>= 1;
-
-    return order;
+    return flsl(nr_pages - 1);
 }
 
 #ifndef arch_free_heap_page

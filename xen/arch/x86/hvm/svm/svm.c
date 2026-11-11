@@ -511,12 +511,16 @@ static void cf_check svm_set_interrupt_shadow(
 {
     struct vmcb_struct *vmcb = v->arch.hvm.svm.vmcb;
     bool block_nmi = intr_shadow & HVM_INTR_SHADOW_NMI;
+    vintr_t vintr = vmcb_get_vintr(vmcb);
 
     vmcb->int_stat.intr_shadow =
         !!(intr_shadow & (HVM_INTR_SHADOW_MOV_SS|HVM_INTR_SHADOW_STI));
 
-    if ( vmcb->_vintr.fields.vnmi_enable )
-        vmcb->_vintr.fields.vnmi_blocking = block_nmi;
+    if ( vintr.fields.vnmi_enable )
+    {
+        vintr.fields.vnmi_blocking = block_nmi;
+        vmcb_set_vintr(vmcb, vintr);
+    }
     else
     {
         uint32_t gen1 = vmcb_get_general1_intercepts(vmcb);
@@ -890,7 +894,6 @@ static void cf_check svm_ctxt_switch_from(struct vcpu *v)
 
 static void cf_check svm_ctxt_switch_to(struct vcpu *v)
 {
-    struct vmcb_struct *vmcb = v->arch.hvm.svm.vmcb;
     int cpu = smp_processor_id();
 
     /*
@@ -908,7 +911,6 @@ static void cf_check svm_ctxt_switch_to(struct vcpu *v)
 
     svm_restore_dr(v);
 
-    vmcb->cleanbits.raw = 0;
     svm_tsc_ratio_load(v);
 
     if ( cpu_has_msr_tsc_aux )
@@ -953,6 +955,7 @@ static void noreturn cf_check svm_do_resume(void)
         hvm_migrate_pirqs(v);
         /* Migrating to another ASID domain.  Request a new ASID. */
         hvm_asid_flush_vcpu(v);
+        vmcb->cleanbits.raw = 0;
     }
 
     if ( !vcpu_guestmode && !vlapic_hw_disabled(vlapic) )
@@ -1140,22 +1143,23 @@ static void svm_emul_swint_injection(struct x86_event *event)
     if ( !(vmcb_get_cr0(vmcb) & X86_CR0_PE) )
         goto raise_exception; /* TODO: support real-mode injection? */
 
+    /*
+     * In vm86 mode, INT $N is subject to IOPL.
+     *
+     * TODO: It is also subject to CR4.VME=1, which would require reading the
+     * TSS Software Interrupt Redirection bitmap.
+     */
+    if ( type == X86_ET_SW_INT &&
+         regs->eflags & X86_EFLAGS_VM &&
+         MASK_EXTR(regs->eflags, X86_EFLAGS_IOPL) != 3 )
+        goto raise_exception;
+
     idte_size   = lm ? 16 : 8;
     idte_offset = trap * idte_size;
 
     /* ICEBP sets the External Event bit despite being an instruction. */
     ec = (trap << 3) | X86_XEC_IDT |
          (type == X86_ET_PRIV_SW_EXC ? X86_XEC_EXT : 0);
-
-    /*
-     * TODO: This does not cover the v8086 mode with CR4.VME case
-     * correctly, but falls on the safe side from the point of view of a
-     * 32bit OS.  Someone with many TUITs can see about reading the TSS
-     * Software Interrupt Redirection bitmap.
-     */
-    if ( (regs->eflags & X86_EFLAGS_VM) &&
-         MASK_EXTR(regs->eflags, X86_EFLAGS_IOPL) != 3 )
-        goto raise_exception;
 
     /*
      * Read all 8/16 bytes so the idtr limit check is applied properly to
@@ -1934,7 +1938,7 @@ static int cf_check svm_msr_write_intercept(
         vmcb_set_debugctlmsr(vmcb, msr_content);
         if ( !msr_content || !cpu_has_svm_lbrv )
             break;
-        vmcb->virt_ext.fields.lbr_enable = 1;
+        vmcb->virt_ext.lbr_en = true;
         svm_disable_intercept_for_msr(v, MSR_IA32_DEBUGCTLMSR);
         svm_disable_intercept_for_msr(v, MSR_IA32_LASTBRANCHFROMIP);
         svm_disable_intercept_for_msr(v, MSR_IA32_LASTBRANCHTOIP);

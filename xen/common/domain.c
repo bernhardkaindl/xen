@@ -1730,6 +1730,9 @@ int domain_unpause_by_systemcontroller(struct domain *d)
             return -EBUSY;
         }
         d->creation_finished = true;
+
+        /* Release any memory claims left over from domain creation. */
+        domain_set_outstanding_pages(d, 0);
         arch_domain_creation_finished(d);
     }
 
@@ -2190,7 +2193,7 @@ long common_vcpu_op(int cmd, struct vcpu *v, XEN_GUEST_HANDLE_PARAM(void) arg)
 
     case VCPUOP_down:
         for_each_vcpu ( d, v )
-            if ( v->vcpu_id != vcpuid && !test_bit(_VPF_down, &v->pause_flags) )
+            if ( v->vcpu_id != vcpuid && is_vcpu_online(v) )
             {
                rc = 1;
                break;
@@ -2324,12 +2327,21 @@ long common_vcpu_op(int cmd, struct vcpu *v, XEN_GUEST_HANDLE_PARAM(void) arg)
         if ( copy_from_guest(&area, arg, 1) )
             break;
 
+        /* NULL handle is deregistering the address. */
+        if ( guest_handle_is_null(area.addr.h) )
+        {
+            runstate_guest(v) = area.addr.h;
+            rc = 0;
+            break;
+        }
+
         if ( !guest_handle_okay(area.addr.h, 1) )
             break;
 
         rc = 0;
         runstate_guest(v) = area.addr.h;
 
+        /* Update the newly-registered runstate area, best-effort. */
         if ( v == current )
         {
             __copy_to_guest(runstate_guest(v), &v->runstate, 1);

@@ -277,7 +277,9 @@ with the following properties:
     used for the domain P2M pool. This is in-sync with the shadow_memory
     option in xl.cfg. Leaving this field empty in device tree will lead to
     the default size of domain P2M pool, i.e. 1MB per guest vCPU plus 4KB
-    per MB of guest RAM plus 512KB for guest extended regions.
+    per MB of guest RAM plus 512KB for guest extended regions. On Arm, the
+    hardware domain has no dedicated P2M pool, so specifying this property
+    for it makes the domain fail to build.
 
 - max_grant_version
 
@@ -291,7 +293,10 @@ with the following properties:
     Optional. A 32-bit integer specifying the maximum number of grant frames
     the domain is allowed to have. If this property is missing, the value
     specified by Xen command line parameter gnttab_max_frames (or its default
-    value if unspecified, i.e. 64) is used.
+    value if unspecified, i.e. 64) is used. For hardware domain and xen,enhanced
+    domains (for which Xen advertises /hypervisor node) the limit is based on
+    the max region size (GUEST_GNTTAB_SIZE for domUs, size of Xen's text section
+    for hardware domain). A larger value makes the domain fail to build.
 
 - max_maptrack_frames
 
